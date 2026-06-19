@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OBS Timer Controller</title>
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      background: #0d1320;
+      color: #fff;
+      font-family: "Segoe UI", "Pretendard", "Noto Sans KR", Arial, sans-serif;
+    }
+
+    a {
+      color: #41d1ff;
+    }
+  </style>
+</head>
+<body>
+  <a id="fallback" href="http://127.0.0.1:17171/control">OBS 타이머 컨트롤러 열기</a>
+  <script>
+    const target = location.protocol === "file:"
+      ? "http://127.0.0.1:17171/control"
+      : `${location.origin}/control`;
+    document.getElementById("fallback").href = target;
+    location.replace(target);
+  </script>
+</body>
+</html>

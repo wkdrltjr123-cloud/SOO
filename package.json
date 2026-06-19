@@ -1,0 +1,11 @@
+{
+  "name": "obs-timer-web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node obs_timer_server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

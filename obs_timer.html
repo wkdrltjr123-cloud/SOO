@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OBS Timer</title>
+  <style>
+    :root {
+      --text-color: #ffffff;
+      --outline-color: #000000;
+      --panel-bg: rgba(18, 22, 29, 0.9);
+      --panel-border: rgba(255, 255, 255, 0.16);
+      --accent: #41d1ff;
+      --timer-size: 180px;
+      --timer-weight: 800;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      color: #fff;
+      font-family: "Segoe UI", "Pretendard", "Noto Sans KR", Arial, sans-serif;
+    }
+
+    body.solid-bg {
+      background: #111827;
+    }
+
+    body.display-view {
+      cursor: none;
+    }
+
+    body.control-view {
+      min-height: 100%;
+      overflow: auto;
+      background: #0d1320;
+    }
+
+    .stage {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100vw;
+      height: 100vh;
+      padding: 4vh 4vw;
+    }
+
+    body.control-view .stage {
+      height: 28vh;
+      min-height: 170px;
+      padding: 18px 16px 10px;
+    }
+
+    .timer-wrap {
+      width: 100%;
+      text-align: center;
+      user-select: none;
+    }
+
+    .timer {
+      display: inline-block;
+      max-width: 100%;
+      color: var(--text-color);
+      font-size: var(--timer-size);
+      font-weight: var(--timer-weight);
+      line-height: 0.94;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      text-shadow:
+        0 0 2px var(--outline-color),
+        0 0 5px var(--outline-color),
+        4px 4px 0 var(--outline-color),
+        -4px 4px 0 var(--outline-color),
+        4px -4px 0 var(--outline-color),
+        -4px -4px 0 var(--outline-color),
+        0 8px 20px rgba(0, 0, 0, 0.48);
+      transform-origin: center;
+    }
+
+    body.control-view .timer {
+      font-size: clamp(64px, 14vw, 150px);
+    }
+
+    .timer.urgent {
+      animation: pulse 0.85s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.035);
+      }
+    }
+
+    .panel {
+      display: none;
+      width: min(900px, calc(100vw - 28px));
+      margin: 0 auto 16px;
+      max-height: none;
+      overflow: visible;
+      padding: 14px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: var(--panel-bg);
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(12px);
+    }
+
+    body.control-view .panel {
+      display: block;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .status-pill {
+      flex: 0 0 auto;
+      padding: 5px 8px;
+      border: 1px solid rgba(65, 209, 255, 0.35);
+      border-radius: 999px;
+      background: rgba(65, 209, 255, 0.14);
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    label {
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    input,
+    button {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 6px;
+      font: inherit;
+    }
+
+    input {
+      padding: 8px 10px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      outline: none;
+    }
+
+    input[type="range"] {
+      padding: 0;
+      cursor: pointer;
+    }
+
+    button {
+      padding: 8px 10px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 700;
+      transition: background 120ms ease, transform 120ms ease;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button.primary {
+      border-color: rgba(65, 209, 255, 0.58);
+      background: rgba(65, 209, 255, 0.24);
+    }
+
+    button.danger {
+      border-color: rgba(255, 99, 99, 0.5);
+      background: rgba(255, 99, 99, 0.18);
+    }
+
+    .segment {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .mode-button.active {
+      border-color: rgba(65, 209, 255, 0.72);
+      background: rgba(65, 209, 255, 0.32);
+      color: #fff;
+    }
+
+    .palette {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 6px;
+    }
+
+    .swatch {
+      min-height: 30px;
+      padding: 0;
+      border-color: rgba(255, 255, 255, 0.22);
+      background:
+        linear-gradient(var(--swatch), var(--swatch)),
+        linear-gradient(45deg, #bbb 25%, transparent 25% 75%, #bbb 75%),
+        #fff;
+      box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.22);
+    }
+
+    .swatch.active {
+      border-color: var(--accent);
+      box-shadow:
+        inset 0 0 0 2px rgba(0, 0, 0, 0.32),
+        0 0 0 2px rgba(65, 209, 255, 0.35);
+    }
+
+    .palette-label {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .hex-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 76px;
+      gap: 6px;
+    }
+
+    .share-box {
+      display: grid;
+      gap: 6px;
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .share-box input {
+      min-height: 34px;
+      font-size: 12px;
+    }
+
+    .hint {
+      margin: 10px 0 0;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .toggle-row input {
+      width: 18px;
+      min-height: 18px;
+    }
+
+    .toggle-row label {
+      flex: 1;
+      font-size: 13px;
+    }
+
+    @media (max-width: 560px) {
+      body.control-view .stage {
+        min-height: 130px;
+      }
+
+      .panel {
+        width: calc(100vw - 20px);
+        padding: 12px;
+      }
+
+      .grid,
+      .row {
+        grid-template-columns: 1fr;
+      }
+
+      .palette {
+        grid-template-columns: repeat(6, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" aria-live="polite">
+    <div class="timer-wrap">
+      <div id="timer" class="timer">10:00</div>
+    </div>
+  </main>
+
+  <section class="panel" aria-label="타이머 조작 패널">
+    <div class="panel-header">
+      <h1 class="panel-title">OBS 타이머</h1>
+      <div class="status-pill">컨트롤러</div>
+    </div>
+
+    <div class="grid">
+      <div class="field">
+        <label for="hours">시</label>
+        <input id="hours" type="number" min="0" max="99" step="1" value="0">
+      </div>
+      <div class="field">
+        <label for="minutes">분</label>
+        <input id="minutes" type="number" min="0" max="59" step="1" value="10">
+      </div>
+      <div class="field">
+        <label for="seconds">초</label>
+        <input id="seconds" type="number" min="0" max="59" step="1" value="0">
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="applyTime" class="primary" type="button">시간 적용</button>
+      <button id="resetTime" type="button">처음으로</button>
+    </div>
+
+    <div class="row">
+      <button id="toggleRun" class="primary" type="button">시작</button>
+      <button id="stopTimer" class="danger" type="button">정지</button>
+    </div>
+
+    <div class="grid" style="margin-top: 8px;">
+      <button data-jump="-60" type="button">-1분</button>
+      <button data-jump="-10" type="button">-10초</button>
+      <button data-jump="-1" type="button">-1초</button>
+      <button data-jump="60" type="button">+1분</button>
+      <button data-jump="10" type="button">+10초</button>
+      <button data-jump="1" type="button">+1초</button>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>방식</label>
+        <div class="segment" role="group" aria-label="타이머 방식">
+          <button class="mode-button" data-mode="down" type="button">카운트다운</button>
+          <button class="mode-button" data-mode="up" type="button">카운트업</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="fontSize">글자 크기</label>
+        <input id="fontSize" type="range" min="72" max="260" step="2" value="180">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="textColorHex">글자색</label>
+        <div class="palette-label">팔레트에서 선택</div>
+        <div class="palette" data-color-target="textColor" data-color-label="글자색" aria-label="글자색 팔레트"></div>
+        <div class="hex-row">
+          <input id="textColorHex" type="text" value="#ffffff" maxlength="7" spellcheck="false" inputmode="text">
+          <button id="applyTextColor" type="button">적용</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="outlineColorHex">테두리색</label>
+        <div class="palette-label">팔레트에서 선택</div>
+        <div class="palette" data-color-target="outlineColor" data-color-label="테두리색" aria-label="테두리색 팔레트"></div>
+        <div class="hex-row">
+          <input id="outlineColorHex" type="text" value="#000000" maxlength="7" spellcheck="false" inputmode="text">
+          <button id="applyOutlineColor" type="button">적용</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toggle-row">
+      <input id="showHours" type="checkbox">
+      <label for="showHours">1시간 미만이어도 시 표시</label>
+    </div>
+
+    <div class="toggle-row">
+      <input id="solidBg" type="checkbox">
+      <label for="solidBg">불투명 배경 켜기</label>
+    </div>
+
+    <div class="share-box">
+      <label for="displayUrl">OBS 방송 URL</label>
+      <input id="displayUrl" type="text" readonly>
+      <label for="controlUrl">조작 URL</label>
+      <input id="controlUrl" type="text" readonly>
+    </div>
+
+    <p class="hint">OBS 소스에는 이 메뉴가 나오지 않습니다. 같은 방 코드의 방송 URL과 조작 URL이 서로 동기화됩니다.</p>
+  </section>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const pathView = location.pathname.toLowerCase();
+    const isServerMode = location.protocol === "http:" || location.protocol === "https:";
+    const isControlView = params.has("control") || params.get("view") === "control" || pathView === "/" || pathView.endsWith("/control") || pathView.endsWith("/controller") || location.hash.includes("control");
+    const room = getRoomName();
+    const controlKey = getControlKey();
+    const stateEndpoint = `/state?room=${encodeURIComponent(room)}`;
+    const writeStateEndpoint = `${stateEndpoint}&key=${encodeURIComponent(controlKey)}`;
+    const storageKey = "obsTimerState.v2";
+    const legacyStorageKey = "obsTimerState";
+    const channelName = "obs-timer-control";
+    const channel = !isServerMode && "BroadcastChannel" in window ? new BroadcastChannel(channelName) : null;
+
+    const defaults = {
+      duration: 600,
+      remaining: 600,
+      elapsed: 0,
+      running: false,
+      lastStartedAt: 0,
+      mode: "down",
+      textColor: "#ffffff",
+      outlineColor: "#000000",
+      fontSize: 180,
+      showHours: false,
+      solidBg: false
+    };
+
+    const paletteColors = [
+      "#ffffff", "#f3f4f6", "#d1d5db", "#9ca3af", "#6b7280", "#374151", "#111827", "#000000",
+      "#ffeb3b", "#f59e0b", "#ff7a1a", "#ef4444", "#ff5a7a", "#ec4899", "#a855f7", "#7c3aed",
+      "#41d1ff", "#0ea5e9", "#2563eb", "#1d4ed8", "#14b8a6", "#10b981", "#70ff9d", "#22c55e",
+      "#84cc16", "#4d7c0f", "#fef3c7", "#f5d0fe", "#bae6fd", "#bbf7d0", "#fee2e2", "#fde68a",
+      "#003b5c", "#5c1a1a", "#3d2b00", "#1f2937"
+    ];
+
+    document.body.classList.add(isControlView ? "control-view" : "display-view");
+    renderPalettes();
+
+    const state = loadState();
+    let lastFrameAt = performance.now();
+    let rafId = 0;
+
+    const els = {
+      timer: document.getElementById("timer"),
+      hours: document.getElementById("hours"),
+      minutes: document.getElementById("minutes"),
+      seconds: document.getElementById("seconds"),
+      applyTime: document.getElementById("applyTime"),
+      resetTime: document.getElementById("resetTime"),
+      toggleRun: document.getElementById("toggleRun"),
+      stopTimer: document.getElementById("stopTimer"),
+      modeButtons: document.querySelectorAll("[data-mode]"),
+      fontSize: document.getElementById("fontSize"),
+      textColorHex: document.getElementById("textColorHex"),
+      outlineColorHex: document.getElementById("outlineColorHex"),
+      applyTextColor: document.getElementById("applyTextColor"),
+      applyOutlineColor: document.getElementById("applyOutlineColor"),
+      swatches: document.querySelectorAll(".swatch[data-color]"),
+      showHours: document.getElementById("showHours"),
+      solidBg: document.getElementById("solidBg"),
+      displayUrl: document.getElementById("displayUrl"),
+      controlUrl: document.getElementById("controlUrl")
+    };
+
+    function sanitizeRoom(value) {
+      return String(value || "")
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]/g, "")
+        .slice(0, 40);
+    }
+
+    function makeRoomId() {
+      const random = Math.random().toString(36).slice(2, 8);
+      return `room-${random}`;
+    }
+
+    function makeControlKey() {
+      const first = Math.random().toString(36).slice(2);
+      const second = Math.random().toString(36).slice(2);
+      return `${first}${second}`.slice(0, 24);
+    }
+
+    function sanitizeKey(value) {
+      return String(value || "")
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]/g, "")
+        .slice(0, 64);
+    }
+
+    function getRoomName() {
+      const explicit = sanitizeRoom(params.get("room") || params.get("r"));
+      if (explicit) return explicit;
+
+      if (isServerMode && isControlView) {
+        const saved = sanitizeRoom(localStorage.getItem("obsTimerRoom"));
+        const next = saved || makeRoomId();
+        localStorage.setItem("obsTimerRoom", next);
+        params.set("room", next);
+        history.replaceState(null, "", `${location.pathname}?${params.toString()}${location.hash}`);
+        return next;
+      }
+
+      return "default";
+    }
+
+    function getControlKey() {
+      if (!isServerMode || !isControlView) return "";
+
+      const explicit = sanitizeKey(params.get("key"));
+      if (explicit) return explicit;
+
+      const storageKeyForRoom = `obsTimerControlKey:${room}`;
+      const saved = sanitizeKey(localStorage.getItem(storageKeyForRoom));
+      const next = saved || makeControlKey();
+      localStorage.setItem(storageKeyForRoom, next);
+      params.set("key", next);
+      history.replaceState(null, "", `${location.pathname}?${params.toString()}${location.hash}`);
+      return next;
+    }
+
+    function loadState() {
+      if (isServerMode) {
+        return { ...defaults };
+      }
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem(legacyStorageKey) || "{}");
+        return normalizeState({ ...defaults, ...saved });
+      } catch {
+        return { ...defaults };
+      }
+    }
+
+    function normalizeState(value) {
+      const next = { ...defaults, ...value };
+      next.duration = clampNumber(next.duration, 0, 359999, defaults.duration);
+      next.remaining = clampNumber(next.remaining, 0, 359999, defaults.remaining);
+      next.elapsed = clampNumber(next.elapsed, 0, 359999, defaults.elapsed);
+      next.running = Boolean(next.running);
+      next.lastStartedAt = Number(next.lastStartedAt) || 0;
+      next.mode = next.mode === "up" ? "up" : "down";
+      next.textColor = normalizeHex(next.textColor, defaults.textColor);
+      next.outlineColor = normalizeHex(next.outlineColor, defaults.outlineColor);
+      next.fontSize = clampNumber(next.fontSize, 72, 260, defaults.fontSize);
+      next.showHours = Boolean(next.showHours);
+      next.solidBg = Boolean(next.solidBg);
+      return next;
+    }
+
+    function saveState(emit = true) {
+      if (isServerMode) {
+        if (emit && isControlView) postServerState();
+        return;
+      }
+      const payload = JSON.stringify(state);
+      localStorage.setItem(storageKey, payload);
+      if (emit && channel) {
+        channel.postMessage({ type: "state", state });
+      }
+    }
+
+    async function fetchServerState() {
+      if (!isServerMode) return;
+      try {
+        const response = await fetch(stateEndpoint, { cache: "no-store" });
+        if (!response.ok) return;
+        const nextState = await response.json();
+        receiveState(nextState);
+      } catch {
+        // The local timer server may still be starting.
+      }
+    }
+
+    async function postServerState() {
+      try {
+        await fetch(writeStateEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(state)
+        });
+      } catch {
+        // Keep the controller responsive even if the local server is temporarily unavailable.
+      }
+    }
+
+    function receiveState(nextState) {
+      Object.assign(state, normalizeState(nextState));
+      render(true);
+    }
+
+    function clampNumber(value, min, max, fallback) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return fallback;
+      return Math.min(max, Math.max(min, number));
+    }
+
+    function clampInt(value, min, max) {
+      const number = Number.parseInt(value, 10);
+      if (Number.isNaN(number)) return min;
+      return Math.min(max, Math.max(min, number));
+    }
+
+    function normalizeHex(value, fallback) {
+      const raw = String(value || "").trim();
+      const withHash = raw.startsWith("#") ? raw : `#${raw}`;
+      if (/^#[0-9a-fA-F]{3}$/.test(withHash)) {
+        return `#${withHash[1]}${withHash[1]}${withHash[2]}${withHash[2]}${withHash[3]}${withHash[3]}`.toLowerCase();
+      }
+      if (/^#[0-9a-fA-F]{6}$/.test(withHash)) {
+        return withHash.toLowerCase();
+      }
+      return fallback;
+    }
+
+    function renderPalettes() {
+      document.querySelectorAll(".palette[data-color-target]").forEach((palette) => {
+        const label = palette.dataset.colorLabel || "색상";
+        palette.innerHTML = paletteColors.map((color) => (
+          `<button class="swatch" data-color="${color}" style="--swatch: ${color};" type="button" aria-label="${label} ${color}"></button>`
+        )).join("");
+      });
+    }
+
+    function readInputSeconds() {
+      const hours = clampInt(els.hours.value, 0, 99);
+      const minutes = clampInt(els.minutes.value, 0, 59);
+      const seconds = clampInt(els.seconds.value, 0, 59);
+      els.hours.value = hours;
+      els.minutes.value = minutes;
+      els.seconds.value = seconds;
+      return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    function writeInputSeconds(total) {
+      if (!isControlView || isTimeInputFocused()) return;
+      const safeTotal = Math.max(0, Math.floor(total));
+      els.hours.value = Math.floor(safeTotal / 3600);
+      els.minutes.value = Math.floor((safeTotal % 3600) / 60);
+      els.seconds.value = safeTotal % 60;
+    }
+
+    function isTimeInputFocused() {
+      return document.activeElement === els.hours || document.activeElement === els.minutes || document.activeElement === els.seconds;
+    }
+
+    function getCurrentTimes(now = Date.now()) {
+      const delta = state.running && state.lastStartedAt ? Math.max(0, (now - state.lastStartedAt) / 1000) : 0;
+      return {
+        remaining: state.mode === "down" ? Math.max(0, state.remaining - delta) : state.remaining,
+        elapsed: state.mode === "up" ? state.elapsed + delta : state.elapsed
+      };
+    }
+
+    function freezeTime(now = Date.now()) {
+      const current = getCurrentTimes(now);
+      state.remaining = current.remaining;
+      state.elapsed = current.elapsed;
+      state.lastStartedAt = now;
+      if (state.mode === "down" && state.remaining <= 0) {
+        state.running = false;
+      }
+    }
+
+    function activeSeconds() {
+      const current = getCurrentTimes();
+      return state.mode === "up" ? current.elapsed : current.remaining;
+    }
+
+    function formatTime(totalSeconds) {
+      const total = Math.max(0, Math.floor(totalSeconds));
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const seconds = total % 60;
+
+      if (hours > 0 || state.showHours) {
+        return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      }
+      return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function render(fromRemote = false) {
+      const currentSeconds = activeSeconds();
+      els.timer.textContent = formatTime(currentSeconds);
+      els.timer.classList.toggle("urgent", state.mode === "down" && state.running && currentSeconds <= 10 && currentSeconds > 0);
+
+      if (isControlView) {
+        const displayUrl = `${location.origin}/display?room=${encodeURIComponent(room)}`;
+        const controlUrl = `${location.origin}/control?room=${encodeURIComponent(room)}&key=${encodeURIComponent(controlKey)}`;
+        els.displayUrl.value = displayUrl;
+        els.controlUrl.value = controlUrl;
+        els.toggleRun.textContent = state.running ? "일시정지" : "시작";
+        els.modeButtons.forEach((button) => {
+          button.classList.toggle("active", button.dataset.mode === state.mode);
+        });
+        els.fontSize.value = state.fontSize;
+        if (document.activeElement !== els.textColorHex) {
+          els.textColorHex.value = state.textColor;
+        }
+        if (document.activeElement !== els.outlineColorHex) {
+          els.outlineColorHex.value = state.outlineColor;
+        }
+        els.swatches.forEach((button) => {
+          const target = button.closest("[data-color-target]")?.dataset.colorTarget;
+          button.classList.toggle("active", target && button.dataset.color.toLowerCase() === state[target]);
+        });
+        els.showHours.checked = state.showHours;
+        els.solidBg.checked = state.solidBg;
+        if (!state.running || fromRemote) {
+          writeInputSeconds(currentSeconds);
+        }
+      }
+
+      document.documentElement.style.setProperty("--text-color", state.textColor);
+      document.documentElement.style.setProperty("--outline-color", state.outlineColor);
+      document.documentElement.style.setProperty("--timer-size", `${state.fontSize}px`);
+      document.body.classList.toggle("solid-bg", state.solidBg);
+      fitTimer();
+    }
+
+    function fitTimer() {
+      els.timer.style.transform = "scale(1)";
+      const width = els.timer.scrollWidth;
+      const maxWidth = window.innerWidth * 0.94;
+      if (width > maxWidth) {
+        const scale = Math.max(0.4, maxWidth / width);
+        els.timer.style.transform = `scale(${scale})`;
+      }
+    }
+
+    function syncAndRender() {
+      saveState();
+      render();
+    }
+
+    function setRunning(running) {
+      freezeTime();
+      state.running = Boolean(running);
+      if (state.mode === "down" && state.remaining <= 0) {
+        state.running = false;
+      }
+      state.lastStartedAt = Date.now();
+      syncAndRender();
+    }
+
+    function setMode(mode) {
+      freezeTime();
+      state.mode = mode === "up" ? "up" : "down";
+      if (state.mode === "down" && state.remaining <= 0) {
+        state.remaining = state.duration;
+      }
+      state.lastStartedAt = Date.now();
+      writeInputSeconds(activeSeconds());
+      syncAndRender();
+    }
+
+    function setColor(target, value) {
+      freezeTime();
+      state[target] = normalizeHex(value, state[target]);
+      syncAndRender();
+    }
+
+    function applyTime() {
+      const seconds = readInputSeconds();
+      freezeTime();
+      state.duration = seconds;
+      if (state.mode === "down") {
+        state.remaining = seconds;
+      } else {
+        state.elapsed = seconds;
+      }
+      state.running = false;
+      state.lastStartedAt = Date.now();
+      syncAndRender();
+    }
+
+    function resetTime() {
+      state.running = false;
+      state.remaining = state.duration;
+      state.elapsed = 0;
+      state.lastStartedAt = Date.now();
+      writeInputSeconds(state.mode === "down" ? state.remaining : state.elapsed);
+      syncAndRender();
+    }
+
+    function jump(seconds) {
+      freezeTime();
+      if (state.mode === "down") {
+        state.remaining = Math.max(0, state.remaining + seconds);
+        state.duration = Math.max(state.duration, state.remaining);
+        writeInputSeconds(state.remaining);
+      } else {
+        state.elapsed = Math.max(0, state.elapsed + seconds);
+        writeInputSeconds(state.elapsed);
+      }
+      state.lastStartedAt = Date.now();
+      syncAndRender();
+    }
+
+    function bindController() {
+      if (!isControlView) return;
+
+      els.applyTime.addEventListener("click", applyTime);
+      els.resetTime.addEventListener("click", resetTime);
+      els.toggleRun.addEventListener("click", () => setRunning(!state.running));
+      els.stopTimer.addEventListener("click", () => setRunning(false));
+
+      document.querySelectorAll("[data-jump]").forEach((button) => {
+        button.addEventListener("click", () => jump(Number(button.dataset.jump)));
+      });
+
+      els.modeButtons.forEach((button) => {
+        button.addEventListener("click", () => setMode(button.dataset.mode));
+      });
+
+      els.fontSize.addEventListener("input", () => {
+        freezeTime();
+        state.fontSize = Number(els.fontSize.value);
+        syncAndRender();
+      });
+
+      els.swatches.forEach((button) => {
+        button.addEventListener("click", () => {
+          const target = button.closest("[data-color-target]").dataset.colorTarget;
+          setColor(target, button.dataset.color);
+        });
+      });
+
+      els.applyTextColor.addEventListener("click", () => setColor("textColor", els.textColorHex.value));
+      els.applyOutlineColor.addEventListener("click", () => setColor("outlineColor", els.outlineColorHex.value));
+      els.textColorHex.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") setColor("textColor", els.textColorHex.value);
+      });
+      els.outlineColorHex.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") setColor("outlineColor", els.outlineColorHex.value);
+      });
+
+      els.showHours.addEventListener("change", () => {
+        freezeTime();
+        state.showHours = els.showHours.checked;
+        syncAndRender();
+      });
+
+      els.solidBg.addEventListener("change", () => {
+        freezeTime();
+        state.solidBg = els.solidBg.checked;
+        syncAndRender();
+      });
+
+      document.addEventListener("keydown", (event) => {
+        const tagName = document.activeElement?.tagName;
+        if (tagName === "INPUT") return;
+
+        if (event.key === " ") {
+          event.preventDefault();
+          setRunning(!state.running);
+        }
+        if (event.key.toLowerCase() === "r") {
+          resetTime();
+        }
+      });
+    }
+
+    function bindSync() {
+      if (isServerMode) {
+        fetchServerState();
+        window.setInterval(fetchServerState, 300);
+        window.addEventListener("resize", fitTimer);
+        return;
+      }
+
+      if (channel) {
+        channel.addEventListener("message", (event) => {
+          if (event.data?.type === "state") {
+            receiveState(event.data.state);
+          }
+        });
+      }
+
+      window.addEventListener("storage", (event) => {
+        if (event.key === storageKey && event.newValue) {
+          try {
+            receiveState(JSON.parse(event.newValue));
+          } catch {
+            // Ignore malformed external writes.
+          }
+        }
+      });
+
+      window.addEventListener("resize", fitTimer);
+    }
+
+    function tick(now) {
+      if (state.running) {
+        const current = getCurrentTimes();
+        if (state.mode === "down" && current.remaining <= 0) {
+          state.remaining = 0;
+          state.running = false;
+          state.lastStartedAt = Date.now();
+          saveState();
+        }
+      }
+
+      if (state.running || now - lastFrameAt > 250) {
+        render();
+        lastFrameAt = now;
+      }
+
+      rafId = requestAnimationFrame(tick);
+    }
+
+    bindController();
+    bindSync();
+    writeInputSeconds(activeSeconds());
+    render();
+    saveState(false);
+    rafId = requestAnimationFrame(tick);
+    window.addEventListener("beforeunload", () => {
+      cancelAnimationFrame(rafId);
+      if (channel) channel.close();
+    });
+  </script>
+</body>
+</html>
