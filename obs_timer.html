@@ -110,11 +110,12 @@
     .timer-separator {
       position: relative;
       display: inline-block;
+      align-self: center;
       flex: 0 0 0.34em;
       width: 0.34em;
-      height: 0.88em;
-      margin: 0 0.02em;
-      transform: translateY(0.07em);
+      height: 1em;
+      margin: 0 0.03em;
+      transform: translateY(0);
     }
 
     .timer-separator::before,
@@ -122,22 +123,22 @@
       content: "";
       position: absolute;
       left: 50%;
-      width: 0.105em;
-      height: 0.105em;
+      width: 0.095em;
+      height: 0.095em;
       border-radius: 999px;
       background: var(--text-color);
       box-shadow:
-        0 0 0 min(var(--outline-width), 0.17em) var(--outline-color),
+        0 0 0 min(var(--outline-width), 0.095em) var(--outline-color),
         0 0 calc(var(--outline-width) * 0.12) var(--outline-color);
       transform: translate(-50%, -50%);
     }
 
     .timer-separator::before {
-      top: calc(50% - 0.255em);
+      top: 38%;
     }
 
     .timer-separator::after {
-      top: calc(50% + 0.255em);
+      top: 62%;
     }
 
     .timer.urgent {
