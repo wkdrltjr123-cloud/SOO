@@ -46,7 +46,8 @@
 
     body.control-view {
       min-height: 100%;
-      overflow: auto;
+      overflow-y: auto;
+      overflow-x: hidden;
       background: #0d1320;
     }
 
@@ -55,7 +56,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 100vw;
+      width: 100%;
       height: 100vh;
       padding: 4vh 4vw;
     }
@@ -111,9 +112,9 @@
       display: inline-block;
       flex: 0 0 0.34em;
       width: 0.34em;
-      height: 0.72em;
+      height: 0.88em;
       margin: 0 0.02em;
-      transform: translateY(-0.01em);
+      transform: translateY(0.07em);
     }
 
     .timer-separator::before,
@@ -121,22 +122,22 @@
       content: "";
       position: absolute;
       left: 50%;
-      width: 0.12em;
-      height: 0.12em;
+      width: 0.105em;
+      height: 0.105em;
       border-radius: 999px;
       background: var(--text-color);
       box-shadow:
-        0 0 0 var(--outline-width) var(--outline-color),
+        0 0 0 min(var(--outline-width), 0.17em) var(--outline-color),
         0 0 calc(var(--outline-width) * 0.12) var(--outline-color);
       transform: translate(-50%, -50%);
     }
 
     .timer-separator::before {
-      top: calc(50% - 0.18em);
+      top: calc(50% - 0.255em);
     }
 
     .timer-separator::after {
-      top: calc(50% + 0.18em);
+      top: calc(50% + 0.255em);
     }
 
     .timer.urgent {
@@ -154,7 +155,7 @@
 
     .panel {
       display: none;
-      width: min(780px, calc(100vw - 24px));
+      width: min(780px, calc(100% - 24px));
       margin: 0 auto 12px;
       max-height: none;
       overflow: visible;
@@ -541,7 +542,7 @@
       }
 
       .panel {
-        width: calc(100vw - 20px);
+        width: calc(100% - 20px);
         padding: 12px;
       }
 
