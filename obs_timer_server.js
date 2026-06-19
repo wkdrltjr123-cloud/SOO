@@ -20,6 +20,7 @@ const defaults = {
   mode: "down",
   textColor: "#ffffff",
   outlineColor: "#000000",
+  outlineWidth: 4,
   fontSize: 180,
   fontFile: "",
   showHours: false,
@@ -57,6 +58,7 @@ function normalizeState(value) {
   next.mode = next.mode === "up" ? "up" : "down";
   next.textColor = normalizeHex(next.textColor, defaults.textColor);
   next.outlineColor = normalizeHex(next.outlineColor, defaults.outlineColor);
+  next.outlineWidth = clampNumber(next.outlineWidth, 0, 12, defaults.outlineWidth);
   next.fontSize = clampNumber(next.fontSize, 72, 260, defaults.fontSize);
   next.fontFile = sanitizeFontName(next.fontFile);
   next.showHours = Boolean(next.showHours);
