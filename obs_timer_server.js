@@ -12,8 +12,8 @@ const fontsDir = path.join(rootDir, "fonts");
 const fontExtensions = new Set([".woff2", ".woff", ".ttf", ".otf"]);
 
 const defaults = {
-  duration: 600,
-  remaining: 600,
+  duration: 0,
+  remaining: 0,
   elapsed: 0,
   running: false,
   lastStartedAt: 0,
@@ -67,7 +67,7 @@ function normalizeState(value) {
 
 function sanitizeFontName(value) {
   const baseName = path.basename(String(value || ""));
-  return baseName.replace(/[^a-zA-Z0-9._ -]/g, "").slice(0, 120);
+  return baseName.replace(/[<>:"|?*\u0000-\u001F]/g, "").slice(0, 160);
 }
 
 function getFontMimeType(fileName) {
