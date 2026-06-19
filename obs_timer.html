@@ -83,12 +83,11 @@
       letter-spacing: 0;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
+      -webkit-text-fill-color: var(--text-color);
+      -webkit-text-stroke: var(--outline-width) var(--outline-color);
+      paint-order: stroke fill;
       text-shadow:
-        0 0 calc(var(--outline-width) * 0.45) var(--outline-color),
-        var(--outline-width) var(--outline-width) 0 var(--outline-color),
-        calc(var(--outline-width) * -1) var(--outline-width) 0 var(--outline-color),
-        var(--outline-width) calc(var(--outline-width) * -1) 0 var(--outline-color),
-        calc(var(--outline-width) * -1) calc(var(--outline-width) * -1) 0 var(--outline-color),
+        0 0 calc(var(--outline-width) * 0.18) var(--outline-color),
         0 8px 20px rgba(0, 0, 0, 0.48);
       transform-origin: center;
     }
