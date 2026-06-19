@@ -97,6 +97,44 @@
       transform-origin: center;
     }
 
+    .timer-part {
+      display: inline-block;
+      min-width: 0.56em;
+      text-align: center;
+    }
+
+    .timer-separator {
+      position: relative;
+      display: inline-block;
+      width: 0.34em;
+      height: 0.76em;
+      margin: 0 0.02em;
+      vertical-align: middle;
+    }
+
+    .timer-separator::before,
+    .timer-separator::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      width: 0.12em;
+      height: 0.12em;
+      border-radius: 999px;
+      background: var(--text-color);
+      box-shadow:
+        0 0 0 var(--outline-width) var(--outline-color),
+        0 0 calc(var(--outline-width) * 0.12) var(--outline-color);
+      transform: translateX(-50%);
+    }
+
+    .timer-separator::before {
+      top: 0.18em;
+    }
+
+    .timer-separator::after {
+      bottom: 0.18em;
+    }
+
     .timer.urgent {
       animation: pulse 0.85s ease-in-out infinite;
     }
@@ -705,6 +743,7 @@
     const state = loadState();
     let lastFrameAt = performance.now();
     let lastRenderedSecond = null;
+    let lastTimerText = "";
     let lastServerPayload = "";
     let draftTimeDirty = false;
     let activeColorTarget = "textColor";
@@ -1182,10 +1221,30 @@
       return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     }
 
+    function renderTimerText(value) {
+      if (value === lastTimerText) return;
+      lastTimerText = value;
+      els.timer.setAttribute("aria-label", value);
+
+      const fragment = document.createDocumentFragment();
+      for (const char of value) {
+        const span = document.createElement("span");
+        if (char === ":") {
+          span.className = "timer-separator";
+          span.setAttribute("aria-hidden", "true");
+        } else {
+          span.className = "timer-part";
+          span.textContent = char;
+        }
+        fragment.appendChild(span);
+      }
+      els.timer.replaceChildren(fragment);
+    }
+
     function render(fromRemote = false) {
       const currentSeconds = activeSeconds();
       lastRenderedSecond = Math.floor(currentSeconds);
-      els.timer.textContent = formatTime(currentSeconds);
+      renderTimerText(formatTime(currentSeconds));
       els.timer.classList.toggle("urgent", state.mode === "down" && state.running && currentSeconds <= 10 && currentSeconds > 0);
 
       if (isControlView) {
