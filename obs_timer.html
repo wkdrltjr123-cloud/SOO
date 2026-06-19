@@ -13,6 +13,7 @@
       --accent: #41d1ff;
       --timer-size: 180px;
       --timer-weight: 800;
+      --timer-font-family: "Segoe UI", "Pretendard", "Noto Sans KR", Arial, sans-serif;
     }
 
     * {
@@ -31,7 +32,7 @@
     }
 
     body.solid-bg {
-      background: #111827;
+      background: rgba(17, 24, 39, var(--bg-opacity));
     }
 
     body.display-view {
@@ -71,6 +72,7 @@
       max-width: 100%;
       color: var(--text-color);
       font-size: var(--timer-size);
+      font-family: var(--timer-font-family);
       font-weight: var(--timer-weight);
       line-height: 0.94;
       letter-spacing: 0;
@@ -189,6 +191,18 @@
       outline: none;
     }
 
+    input[type="number"] {
+      appearance: textfield;
+      -moz-appearance: textfield;
+    }
+
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      margin: 0;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
     input[type="range"] {
       padding: 0;
       cursor: pointer;
@@ -221,6 +235,44 @@
       background: rgba(255, 99, 99, 0.18);
     }
 
+    .time-stepper {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 42px;
+      gap: 6px;
+    }
+
+    .time-stepper input {
+      height: 72px;
+      min-height: 72px;
+      padding: 8px 12px;
+      text-align: center;
+      font-size: 26px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stepper-buttons {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .step-button {
+      min-height: 0;
+      height: 33px;
+      padding: 0;
+      border-color: rgba(65, 209, 255, 0.28);
+      background: rgba(65, 209, 255, 0.12);
+      font-size: 17px;
+      line-height: 1;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .step-button:hover {
+      background: rgba(65, 209, 255, 0.22);
+    }
+
     .segment {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -235,7 +287,7 @@
 
     .palette {
       display: grid;
-      grid-template-columns: repeat(8, 1fr);
+      grid-template-columns: repeat(12, 1fr);
       gap: 6px;
     }
 
@@ -261,6 +313,52 @@
       color: rgba(255, 255, 255, 0.7);
       font-size: 11px;
       font-weight: 600;
+    }
+
+    .paint-palette {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .paint-targets {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .color-target {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      align-items: center;
+      gap: 8px;
+      min-height: 46px;
+      text-align: left;
+    }
+
+    .color-target.active {
+      border-color: rgba(65, 209, 255, 0.72);
+      background: rgba(65, 209, 255, 0.24);
+    }
+
+    .color-preview {
+      width: 28px;
+      height: 28px;
+      border: 2px solid rgba(255, 255, 255, 0.85);
+      border-radius: 4px;
+      background: var(--preview-color);
+      box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.26);
+    }
+
+    .palette-wrap {
+      display: grid;
+      gap: 5px;
+    }
+
+    .paint-hex-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
     }
 
     .hex-row {
@@ -308,6 +406,54 @@
       font-size: 13px;
     }
 
+    .opacity-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 46px;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .opacity-value {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 12px;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .font-panel {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .font-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .font-button {
+      min-height: 36px;
+      padding: 7px 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .font-button.active {
+      border-color: rgba(65, 209, 255, 0.72);
+      background: rgba(65, 209, 255, 0.3);
+    }
+
+    .font-empty {
+      padding: 9px 10px;
+      border: 1px dashed rgba(255, 255, 255, 0.18);
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.68);
+      font-size: 12px;
+    }
+
     @media (max-width: 560px) {
       body.control-view .stage {
         min-height: 130px;
@@ -324,7 +470,15 @@
       }
 
       .palette {
-        grid-template-columns: repeat(6, 1fr);
+        grid-template-columns: repeat(8, 1fr);
+      }
+
+      .paint-hex-row {
+        grid-template-columns: 1fr;
+      }
+
+      .font-list {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -345,21 +499,39 @@
     <div class="grid">
       <div class="field">
         <label for="hours">시</label>
-        <input id="hours" type="number" min="0" max="99" step="1" value="0">
+        <div class="time-stepper">
+          <input id="hours" type="number" min="0" max="99" step="1" value="0" inputmode="numeric">
+          <div class="stepper-buttons" aria-label="시 조절">
+            <button class="step-button" data-time-step="hours" data-step="1" type="button" aria-label="시 올리기">▲</button>
+            <button class="step-button" data-time-step="hours" data-step="-1" type="button" aria-label="시 내리기">▼</button>
+          </div>
+        </div>
       </div>
       <div class="field">
         <label for="minutes">분</label>
-        <input id="minutes" type="number" min="0" max="59" step="1" value="10">
+        <div class="time-stepper">
+          <input id="minutes" type="number" min="0" max="59" step="1" value="10" inputmode="numeric">
+          <div class="stepper-buttons" aria-label="분 조절">
+            <button class="step-button" data-time-step="minutes" data-step="1" type="button" aria-label="분 올리기">▲</button>
+            <button class="step-button" data-time-step="minutes" data-step="-1" type="button" aria-label="분 내리기">▼</button>
+          </div>
+        </div>
       </div>
       <div class="field">
         <label for="seconds">초</label>
-        <input id="seconds" type="number" min="0" max="59" step="1" value="0">
+        <div class="time-stepper">
+          <input id="seconds" type="number" min="0" max="59" step="1" value="0" inputmode="numeric">
+          <div class="stepper-buttons" aria-label="초 조절">
+            <button class="step-button" data-time-step="seconds" data-step="1" type="button" aria-label="초 올리기">▲</button>
+            <button class="step-button" data-time-step="seconds" data-step="-1" type="button" aria-label="초 내리기">▼</button>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="row">
       <button id="applyTime" class="primary" type="button">시간 적용</button>
-      <button id="resetTime" type="button">처음으로</button>
+      <button id="resetTime" type="button">시간 초기화</button>
     </div>
 
     <div class="row">
@@ -390,23 +562,42 @@
       </div>
     </div>
 
-    <div class="row">
-      <div class="field">
-        <label for="textColorHex">글자색</label>
-        <div class="palette-label">팔레트에서 선택</div>
-        <div class="palette" data-color-target="textColor" data-color-label="글자색" aria-label="글자색 팔레트"></div>
-        <div class="hex-row">
-          <input id="textColorHex" type="text" value="#ffffff" maxlength="7" spellcheck="false" inputmode="text">
-          <button id="applyTextColor" type="button">적용</button>
-        </div>
+    <div class="font-panel">
+      <label>폰트</label>
+      <div id="fontList" class="font-list" aria-label="폰트 선택"></div>
+      <div id="fontEmpty" class="font-empty">기본 폰트를 사용 중입니다. `fonts` 폴더에 폰트 파일을 넣으면 여기에 표시됩니다.</div>
+    </div>
+
+    <div class="paint-palette" aria-label="색상 팔레트">
+      <label>색상</label>
+      <div class="paint-targets" role="group" aria-label="색상 적용 대상">
+        <button class="color-target active" data-color-target-button="textColor" type="button">
+          <span id="textColorPreview" class="color-preview" style="--preview-color: #ffffff;"></span>
+          <span>글자색</span>
+        </button>
+        <button class="color-target" data-color-target-button="outlineColor" type="button">
+          <span id="outlineColorPreview" class="color-preview" style="--preview-color: #000000;"></span>
+          <span>테두리색</span>
+        </button>
       </div>
-      <div class="field">
-        <label for="outlineColorHex">테두리색</label>
-        <div class="palette-label">팔레트에서 선택</div>
-        <div class="palette" data-color-target="outlineColor" data-color-label="테두리색" aria-label="테두리색 팔레트"></div>
-        <div class="hex-row">
-          <input id="outlineColorHex" type="text" value="#000000" maxlength="7" spellcheck="false" inputmode="text">
-          <button id="applyOutlineColor" type="button">적용</button>
+      <div class="palette-wrap">
+        <div class="palette-label">그림판 팔레트</div>
+        <div class="palette" data-paint-palette aria-label="공통 색상 팔레트"></div>
+      </div>
+      <div class="paint-hex-row">
+        <div class="field">
+          <label for="textColorHex">글자색 코드</label>
+          <div class="hex-row">
+            <input id="textColorHex" type="text" value="#ffffff" maxlength="7" spellcheck="false" inputmode="text">
+            <button id="applyTextColor" type="button">적용</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="outlineColorHex">테두리색 코드</label>
+          <div class="hex-row">
+            <input id="outlineColorHex" type="text" value="#000000" maxlength="7" spellcheck="false" inputmode="text">
+            <button id="applyOutlineColor" type="button">적용</button>
+          </div>
         </div>
       </div>
     </div>
@@ -419,6 +610,14 @@
     <div class="toggle-row">
       <input id="solidBg" type="checkbox">
       <label for="solidBg">불투명 배경 켜기</label>
+    </div>
+
+    <div class="field">
+      <label for="bgOpacity">배경 투명도</label>
+      <div class="opacity-row">
+        <input id="bgOpacity" type="range" min="0" max="100" step="1" value="100">
+        <span id="bgOpacityValue" class="opacity-value">100%</span>
+      </div>
     </div>
 
     <div class="share-box">
@@ -440,6 +639,7 @@
     const controlKey = getControlKey();
     const stateEndpoint = `/state?room=${encodeURIComponent(room)}`;
     const writeStateEndpoint = `${stateEndpoint}&key=${encodeURIComponent(controlKey)}`;
+    const fontsEndpoint = "/fonts";
     const storageKey = "obsTimerState.v2";
     const legacyStorageKey = "obsTimerState";
     const channelName = "obs-timer-control";
@@ -455,8 +655,10 @@
       textColor: "#ffffff",
       outlineColor: "#000000",
       fontSize: 180,
+      fontFile: "",
       showHours: false,
-      solidBg: false
+      solidBg: false,
+      bgOpacity: 100
     };
 
     const paletteColors = [
@@ -472,6 +674,11 @@
 
     const state = loadState();
     let lastFrameAt = performance.now();
+    let lastRenderedSecond = null;
+    let lastServerPayload = "";
+    let draftTimeDirty = false;
+    let activeColorTarget = "textColor";
+    let availableFonts = [];
     let rafId = 0;
 
     const els = {
@@ -479,19 +686,28 @@
       hours: document.getElementById("hours"),
       minutes: document.getElementById("minutes"),
       seconds: document.getElementById("seconds"),
+      timeInputs: document.querySelectorAll("#hours, #minutes, #seconds"),
+      timeStepButtons: document.querySelectorAll("[data-time-step]"),
       applyTime: document.getElementById("applyTime"),
       resetTime: document.getElementById("resetTime"),
       toggleRun: document.getElementById("toggleRun"),
       stopTimer: document.getElementById("stopTimer"),
       modeButtons: document.querySelectorAll("[data-mode]"),
       fontSize: document.getElementById("fontSize"),
+      fontList: document.getElementById("fontList"),
+      fontEmpty: document.getElementById("fontEmpty"),
       textColorHex: document.getElementById("textColorHex"),
       outlineColorHex: document.getElementById("outlineColorHex"),
       applyTextColor: document.getElementById("applyTextColor"),
       applyOutlineColor: document.getElementById("applyOutlineColor"),
+      colorTargetButtons: document.querySelectorAll("[data-color-target-button]"),
+      textColorPreview: document.getElementById("textColorPreview"),
+      outlineColorPreview: document.getElementById("outlineColorPreview"),
       swatches: document.querySelectorAll(".swatch[data-color]"),
       showHours: document.getElementById("showHours"),
       solidBg: document.getElementById("solidBg"),
+      bgOpacity: document.getElementById("bgOpacity"),
+      bgOpacityValue: document.getElementById("bgOpacityValue"),
       displayUrl: document.getElementById("displayUrl"),
       controlUrl: document.getElementById("controlUrl")
     };
@@ -575,9 +791,114 @@
       next.textColor = normalizeHex(next.textColor, defaults.textColor);
       next.outlineColor = normalizeHex(next.outlineColor, defaults.outlineColor);
       next.fontSize = clampNumber(next.fontSize, 72, 260, defaults.fontSize);
+      next.fontFile = sanitizeFontFile(next.fontFile);
       next.showHours = Boolean(next.showHours);
       next.solidBg = Boolean(next.solidBg);
+      next.bgOpacity = clampNumber(next.bgOpacity, 0, 100, defaults.bgOpacity);
       return next;
+    }
+
+    function sanitizeFontFile(value) {
+      return String(value || "")
+        .trim()
+        .replace(/\\/g, "/")
+        .split("/")
+        .pop()
+        .replace(/[^a-zA-Z0-9._ -]/g, "")
+        .slice(0, 120);
+    }
+
+    function getFontLabel(fileName) {
+      return sanitizeFontFile(fileName)
+        .replace(/\.(woff2?|ttf|otf)$/i, "")
+        .replace(/[_-]+/g, " ")
+        .trim() || "기본";
+    }
+
+    function getTimerFontFamily() {
+      if (!state.fontFile) {
+        return `"Segoe UI", "Pretendard", "Noto Sans KR", Arial, sans-serif`;
+      }
+      return `"OBS_TIMER_CUSTOM", "Segoe UI", "Pretendard", "Noto Sans KR", Arial, sans-serif`;
+    }
+
+    function applyTimerFont() {
+      let style = document.getElementById("dynamicFontFace");
+      if (!style) {
+        style = document.createElement("style");
+        style.id = "dynamicFontFace";
+        document.head.appendChild(style);
+      }
+
+      if (!state.fontFile || !isServerMode) {
+        style.textContent = "";
+        document.documentElement.style.setProperty("--timer-font-family", getTimerFontFamily());
+        return;
+      }
+
+      const fontUrl = `/fonts/${encodeURIComponent(state.fontFile)}`;
+      style.textContent = `
+        @font-face {
+          font-family: "OBS_TIMER_CUSTOM";
+          src: url("${fontUrl}");
+          font-display: swap;
+        }
+      `;
+      document.documentElement.style.setProperty("--timer-font-family", getTimerFontFamily());
+    }
+
+    async function loadFonts() {
+      if (!isServerMode) {
+        availableFonts = [];
+        renderFontList();
+        return;
+      }
+
+      try {
+        const response = await fetch(fontsEndpoint, { cache: "no-store" });
+        if (!response.ok) throw new Error("Font list unavailable");
+        availableFonts = await response.json();
+      } catch {
+        availableFonts = [];
+      }
+      renderFontList();
+    }
+
+    function renderFontList() {
+      if (!isControlView) return;
+
+      const buttons = [
+        `<button class="font-button" data-font-file="" type="button">기본 폰트</button>`,
+        ...availableFonts.map((font) => (
+          `<button class="font-button" data-font-file="${font.file}" title="${font.file}" type="button">${font.label}</button>`
+        ))
+      ];
+      els.fontList.innerHTML = buttons.join("");
+      els.fontEmpty.style.display = availableFonts.length ? "none" : "block";
+      bindFontButtons();
+      updateFontButtons();
+    }
+
+    function bindFontButtons() {
+      els.fontList.querySelectorAll("[data-font-file]").forEach((button) => {
+        button.addEventListener("click", () => {
+          freezeTime();
+          state.fontFile = sanitizeFontFile(button.dataset.fontFile);
+          syncAndRender();
+        });
+      });
+    }
+
+    function updateFontButtons() {
+      if (!isControlView) return;
+
+      els.fontList.querySelectorAll("[data-font-file]").forEach((button) => {
+        button.classList.toggle("active", sanitizeFontFile(button.dataset.fontFile) === state.fontFile);
+        const fontFile = sanitizeFontFile(button.dataset.fontFile);
+        if (fontFile) {
+          button.style.fontFamily = fontFile === state.fontFile ? getTimerFontFamily() : "";
+        }
+      });
     }
 
     function saveState(emit = true) {
@@ -597,8 +918,10 @@
       try {
         const response = await fetch(stateEndpoint, { cache: "no-store" });
         if (!response.ok) return;
-        const nextState = await response.json();
-        receiveState(nextState);
+        const payload = await response.text();
+        if (payload === lastServerPayload) return;
+        lastServerPayload = payload;
+        receiveState(JSON.parse(payload));
       } catch {
         // The local timer server may still be starting.
       }
@@ -606,10 +929,12 @@
 
     async function postServerState() {
       try {
+        const payload = JSON.stringify(state);
+        lastServerPayload = payload;
         await fetch(writeStateEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(state)
+          body: payload
         });
       } catch {
         // Keep the controller responsive even if the local server is temporarily unavailable.
@@ -646,10 +971,9 @@
     }
 
     function renderPalettes() {
-      document.querySelectorAll(".palette[data-color-target]").forEach((palette) => {
-        const label = palette.dataset.colorLabel || "색상";
+      document.querySelectorAll("[data-paint-palette]").forEach((palette) => {
         palette.innerHTML = paletteColors.map((color) => (
-          `<button class="swatch" data-color="${color}" style="--swatch: ${color};" type="button" aria-label="${label} ${color}"></button>`
+          `<button class="swatch" data-color="${color}" style="--swatch: ${color};" type="button" aria-label="색상 ${color}"></button>`
         )).join("");
       });
     }
@@ -665,7 +989,7 @@
     }
 
     function writeInputSeconds(total) {
-      if (!isControlView || isTimeInputFocused()) return;
+      if (!isControlView || isTimeInputFocused() || draftTimeDirty) return;
       const safeTotal = Math.max(0, Math.floor(total));
       els.hours.value = Math.floor(safeTotal / 3600);
       els.minutes.value = Math.floor((safeTotal % 3600) / 60);
@@ -674,6 +998,23 @@
 
     function isTimeInputFocused() {
       return document.activeElement === els.hours || document.activeElement === els.minutes || document.activeElement === els.seconds;
+    }
+
+    function getTimeInputMeta(inputId) {
+      if (inputId === "hours") return { input: els.hours, min: 0, max: 99 };
+      if (inputId === "minutes") return { input: els.minutes, min: 0, max: 59 };
+      return { input: els.seconds, min: 0, max: 59 };
+    }
+
+    function setTimeInputValue(input, value, min, max) {
+      input.value = clampInt(value, min, max);
+      draftTimeDirty = true;
+    }
+
+    function stepTimeInput(inputId, amount) {
+      const { input, min, max } = getTimeInputMeta(inputId);
+      const current = clampInt(input.value, min, max);
+      setTimeInputValue(input, current + amount, min, max);
     }
 
     function getCurrentTimes(now = Date.now()) {
@@ -713,6 +1054,7 @@
 
     function render(fromRemote = false) {
       const currentSeconds = activeSeconds();
+      lastRenderedSecond = Math.floor(currentSeconds);
       els.timer.textContent = formatTime(currentSeconds);
       els.timer.classList.toggle("urgent", state.mode === "down" && state.running && currentSeconds <= 10 && currentSeconds > 0);
 
@@ -732,13 +1074,20 @@
         if (document.activeElement !== els.outlineColorHex) {
           els.outlineColorHex.value = state.outlineColor;
         }
+        els.colorTargetButtons.forEach((button) => {
+          button.classList.toggle("active", button.dataset.colorTargetButton === activeColorTarget);
+        });
+        els.textColorPreview.style.setProperty("--preview-color", state.textColor);
+        els.outlineColorPreview.style.setProperty("--preview-color", state.outlineColor);
         els.swatches.forEach((button) => {
-          const target = button.closest("[data-color-target]")?.dataset.colorTarget;
-          button.classList.toggle("active", target && button.dataset.color.toLowerCase() === state[target]);
+          button.classList.toggle("active", button.dataset.color.toLowerCase() === state[activeColorTarget]);
         });
         els.showHours.checked = state.showHours;
         els.solidBg.checked = state.solidBg;
-        if (!state.running || fromRemote) {
+        els.bgOpacity.value = state.bgOpacity;
+        els.bgOpacityValue.textContent = `${state.bgOpacity}%`;
+        updateFontButtons();
+        if ((!state.running || fromRemote) && !draftTimeDirty) {
           writeInputSeconds(currentSeconds);
         }
       }
@@ -746,6 +1095,8 @@
       document.documentElement.style.setProperty("--text-color", state.textColor);
       document.documentElement.style.setProperty("--outline-color", state.outlineColor);
       document.documentElement.style.setProperty("--timer-size", `${state.fontSize}px`);
+      document.documentElement.style.setProperty("--bg-opacity", String(state.bgOpacity / 100));
+      applyTimerFont();
       document.body.classList.toggle("solid-bg", state.solidBg);
       fitTimer();
     }
@@ -782,6 +1133,7 @@
         state.remaining = state.duration;
       }
       state.lastStartedAt = Date.now();
+      draftTimeDirty = false;
       writeInputSeconds(activeSeconds());
       syncAndRender();
     }
@@ -794,6 +1146,7 @@
 
     function applyTime() {
       const seconds = readInputSeconds();
+      draftTimeDirty = false;
       freezeTime();
       state.duration = seconds;
       if (state.mode === "down") {
@@ -808,15 +1161,18 @@
 
     function resetTime() {
       state.running = false;
-      state.remaining = state.duration;
+      state.duration = 0;
+      state.remaining = 0;
       state.elapsed = 0;
       state.lastStartedAt = Date.now();
-      writeInputSeconds(state.mode === "down" ? state.remaining : state.elapsed);
+      draftTimeDirty = false;
+      writeInputSeconds(0);
       syncAndRender();
     }
 
     function jump(seconds) {
       freezeTime();
+      draftTimeDirty = false;
       if (state.mode === "down") {
         state.remaining = Math.max(0, state.remaining + seconds);
         state.duration = Math.max(state.duration, state.remaining);
@@ -831,6 +1187,55 @@
 
     function bindController() {
       if (!isControlView) return;
+
+      els.timeInputs.forEach((input) => {
+        input.addEventListener("input", () => {
+          draftTimeDirty = true;
+        });
+
+        input.addEventListener("blur", () => {
+          const { min, max } = getTimeInputMeta(input.id);
+          setTimeInputValue(input, input.value, min, max);
+        });
+      });
+
+      let repeatTimeout = 0;
+      let repeatInterval = 0;
+
+      function stopTimeStepRepeat() {
+        window.clearTimeout(repeatTimeout);
+        window.clearInterval(repeatInterval);
+        repeatTimeout = 0;
+        repeatInterval = 0;
+      }
+
+      function runTimeStep(button) {
+        stepTimeInput(button.dataset.timeStep, Number(button.dataset.step));
+      }
+
+      els.timeStepButtons.forEach((button) => {
+        button.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          button.dataset.pointerActive = "1";
+          runTimeStep(button);
+          stopTimeStepRepeat();
+          repeatTimeout = window.setTimeout(() => {
+            repeatInterval = window.setInterval(() => runTimeStep(button), 95);
+          }, 330);
+        });
+
+        button.addEventListener("click", () => {
+          if (button.dataset.pointerActive === "1") {
+            button.dataset.pointerActive = "";
+            return;
+          }
+          runTimeStep(button);
+        });
+
+        ["pointerup", "pointercancel", "pointerleave", "blur"].forEach((eventName) => {
+          button.addEventListener(eventName, stopTimeStepRepeat);
+        });
+      });
 
       els.applyTime.addEventListener("click", applyTime);
       els.resetTime.addEventListener("click", resetTime);
@@ -851,10 +1256,16 @@
         syncAndRender();
       });
 
+      els.colorTargetButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          activeColorTarget = button.dataset.colorTargetButton;
+          render();
+        });
+      });
+
       els.swatches.forEach((button) => {
         button.addEventListener("click", () => {
-          const target = button.closest("[data-color-target]").dataset.colorTarget;
-          setColor(target, button.dataset.color);
+          setColor(activeColorTarget, button.dataset.color);
         });
       });
 
@@ -879,6 +1290,12 @@
         syncAndRender();
       });
 
+      els.bgOpacity.addEventListener("input", () => {
+        freezeTime();
+        state.bgOpacity = Number(els.bgOpacity.value);
+        syncAndRender();
+      });
+
       document.addEventListener("keydown", (event) => {
         const tagName = document.activeElement?.tagName;
         if (tagName === "INPUT") return;
@@ -896,7 +1313,7 @@
     function bindSync() {
       if (isServerMode) {
         fetchServerState();
-        window.setInterval(fetchServerState, 300);
+        window.setInterval(fetchServerState, 700);
         window.addEventListener("resize", fitTimer);
         return;
       }
@@ -933,7 +1350,8 @@
         }
       }
 
-      if (state.running || now - lastFrameAt > 250) {
+      const currentSecond = Math.floor(activeSeconds());
+      if (currentSecond !== lastRenderedSecond || now - lastFrameAt > 1000) {
         render();
         lastFrameAt = now;
       }
@@ -943,6 +1361,7 @@
 
     bindController();
     bindSync();
+    loadFonts();
     writeInputSeconds(activeSeconds());
     render();
     saveState(false);

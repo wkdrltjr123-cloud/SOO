@@ -8,6 +8,8 @@ const rootDir = __dirname;
 const htmlPath = path.join(rootDir, "obs_timer.html");
 const controllerPath = path.join(rootDir, "obs_timer_controller.html");
 const roomsPath = path.join(rootDir, "obs_timer_rooms.json");
+const fontsDir = path.join(rootDir, "fonts");
+const fontExtensions = new Set([".woff2", ".woff", ".ttf", ".otf"]);
 
 const defaults = {
   duration: 600,
@@ -19,8 +21,10 @@ const defaults = {
   textColor: "#ffffff",
   outlineColor: "#000000",
   fontSize: 180,
+  fontFile: "",
   showHours: false,
-  solidBg: false
+  solidBg: false,
+  bgOpacity: 100
 };
 
 let rooms = loadRooms();
@@ -54,9 +58,48 @@ function normalizeState(value) {
   next.textColor = normalizeHex(next.textColor, defaults.textColor);
   next.outlineColor = normalizeHex(next.outlineColor, defaults.outlineColor);
   next.fontSize = clampNumber(next.fontSize, 72, 260, defaults.fontSize);
+  next.fontFile = sanitizeFontName(next.fontFile);
   next.showHours = Boolean(next.showHours);
   next.solidBg = Boolean(next.solidBg);
+  next.bgOpacity = clampNumber(next.bgOpacity, 0, 100, defaults.bgOpacity);
   return next;
+}
+
+function sanitizeFontName(value) {
+  const baseName = path.basename(String(value || ""));
+  return baseName.replace(/[^a-zA-Z0-9._ -]/g, "").slice(0, 120);
+}
+
+function getFontMimeType(fileName) {
+  const extension = path.extname(fileName).toLowerCase();
+  if (extension === ".woff2") return "font/woff2";
+  if (extension === ".woff") return "font/woff";
+  if (extension === ".ttf") return "font/ttf";
+  if (extension === ".otf") return "font/otf";
+  return "application/octet-stream";
+}
+
+function getFontLabel(fileName) {
+  return sanitizeFontName(fileName)
+    .replace(/\.(woff2?|ttf|otf)$/i, "")
+    .replace(/[_-]+/g, " ")
+    .trim();
+}
+
+function listFonts() {
+  try {
+    return fs.readdirSync(fontsDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => sanitizeFontName(entry.name))
+      .filter((fileName) => fontExtensions.has(path.extname(fileName).toLowerCase()))
+      .sort((a, b) => a.localeCompare(b))
+      .map((fileName) => ({
+        file: fileName,
+        label: getFontLabel(fileName)
+      }));
+  } catch {
+    return [];
+  }
 }
 
 function loadRooms() {
@@ -147,6 +190,28 @@ function serveHtml(res, filePath) {
   send(res, 200, fs.readFileSync(filePath, "utf8"), "text/html; charset=utf-8");
 }
 
+function serveFont(res, fileName) {
+  const safeName = sanitizeFontName(fileName);
+  const extension = path.extname(safeName).toLowerCase();
+  if (!safeName || !fontExtensions.has(extension)) {
+    send(res, 404, "Font not found");
+    return;
+  }
+
+  const fontPath = path.join(fontsDir, safeName);
+  if (!fontPath.startsWith(fontsDir) || !fs.existsSync(fontPath)) {
+    send(res, 404, "Font not found");
+    return;
+  }
+
+  res.writeHead(200, {
+    "Content-Type": getFontMimeType(safeName),
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "Access-Control-Allow-Origin": "*"
+  });
+  fs.createReadStream(fontPath).pipe(res);
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -182,6 +247,16 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname === "/obs_timer_controller.html") {
     serveHtml(res, controllerPath);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/fonts") {
+    send(res, 200, JSON.stringify(listFonts()), "application/json; charset=utf-8");
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname.startsWith("/fonts/")) {
+    serveFont(res, decodeURIComponent(url.pathname.slice("/fonts/".length)));
     return;
   }
 

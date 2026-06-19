@@ -22,3 +22,16 @@ After deployment, open the public `/control` URL first. It will generate a room 
 - Keep the generated `.../control?room=...&key=...` URL private for whoever controls the timer.
 
 Anyone with the display URL can see the timer. Only someone with the control URL and key can change it.
+
+## Fonts
+
+Put custom timer fonts in the `fonts` folder before uploading/deploying.
+
+Supported formats:
+
+- `.woff2`
+- `.woff`
+- `.ttf`
+- `.otf`
+
+After deployment, open the controller page and choose the font from the font section. The selected font applies to the OBS display URL too.
