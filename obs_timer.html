@@ -77,7 +77,9 @@
     }
 
     .timer {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       max-width: 100%;
       color: var(--text-color);
       font-size: var(--timer-size);
@@ -100,16 +102,18 @@
     .timer-part {
       display: inline-block;
       min-width: 0.56em;
+      line-height: 0.94;
       text-align: center;
     }
 
     .timer-separator {
       position: relative;
       display: inline-block;
+      flex: 0 0 0.34em;
       width: 0.34em;
-      height: 0.76em;
+      height: 0.72em;
       margin: 0 0.02em;
-      vertical-align: middle;
+      transform: translateY(-0.01em);
     }
 
     .timer-separator::before,
@@ -124,15 +128,15 @@
       box-shadow:
         0 0 0 var(--outline-width) var(--outline-color),
         0 0 calc(var(--outline-width) * 0.12) var(--outline-color);
-      transform: translateX(-50%);
+      transform: translate(-50%, -50%);
     }
 
     .timer-separator::before {
-      top: 0.18em;
+      top: calc(50% - 0.18em);
     }
 
     .timer-separator::after {
-      bottom: 0.18em;
+      top: calc(50% + 0.18em);
     }
 
     .timer.urgent {
