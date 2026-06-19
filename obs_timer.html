@@ -87,6 +87,7 @@
       letter-spacing: 0;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
+      padding: calc(var(--outline-width) + 2px);
       -webkit-text-fill-color: var(--text-color);
       -webkit-text-stroke: var(--outline-width) var(--outline-color);
       paint-order: stroke fill;
@@ -1230,7 +1231,8 @@
     }
 
     function fitTimer() {
-      els.timer.style.transform = "scale(1)";
+      els.timer.style.transform = "";
+      els.timer.style.fontSize = `${state.fontSize}px`;
       const stage = els.timer.closest(".stage");
       const maxWidth = Math.max(80, (stage ? stage.clientWidth : window.innerWidth) * 0.94);
       const maxHeight = Math.max(44, (stage ? stage.clientHeight : window.innerHeight) * 0.78);
@@ -1238,10 +1240,8 @@
       const height = els.timer.scrollHeight;
       const scale = Math.min(maxWidth / width, maxHeight / height);
       if (scale < 1) {
-        const boundedScale = Math.max(0.32, scale);
-        els.timer.style.transform = `scale(${boundedScale})`;
-      } else {
-        els.timer.style.transform = "scale(1)";
+        const fittedSize = Math.max(24, Math.floor(state.fontSize * scale));
+        els.timer.style.fontSize = `${fittedSize}px`;
       }
     }
 
