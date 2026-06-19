@@ -598,7 +598,7 @@
       <div class="field">
         <label for="outlineWidth">테두리 굵기</label>
         <div class="opacity-row">
-          <input id="outlineWidth" type="range" min="0" max="12" step="1" value="4">
+          <input id="outlineWidth" type="range" min="0" max="40" step="1" value="4">
           <span id="outlineWidthValue" class="opacity-value">4px</span>
         </div>
       </div>
@@ -828,7 +828,7 @@
       next.mode = next.mode === "up" ? "up" : "down";
       next.textColor = normalizeHex(next.textColor, defaults.textColor);
       next.outlineColor = normalizeHex(next.outlineColor, defaults.outlineColor);
-      next.outlineWidth = clampNumber(next.outlineWidth, 0, 12, defaults.outlineWidth);
+      next.outlineWidth = clampNumber(next.outlineWidth, 0, 40, defaults.outlineWidth);
       next.fontSize = clampNumber(next.fontSize, 72, 260, defaults.fontSize);
       next.fontFile = sanitizeFontFile(next.fontFile);
       next.showHours = Boolean(next.showHours);
