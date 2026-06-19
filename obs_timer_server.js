@@ -25,7 +25,9 @@ const defaults = {
   fontFile: "",
   showHours: false,
   solidBg: false,
-  bgOpacity: 100
+  bgOpacity: 100,
+  outputWidth: 320,
+  outputHeight: 140
 };
 
 let rooms = loadRooms();
@@ -64,6 +66,8 @@ function normalizeState(value) {
   next.showHours = Boolean(next.showHours);
   next.solidBg = Boolean(next.solidBg);
   next.bgOpacity = clampNumber(next.bgOpacity, 0, 100, defaults.bgOpacity);
+  next.outputWidth = clampNumber(next.outputWidth, 120, 1920, defaults.outputWidth);
+  next.outputHeight = clampNumber(next.outputHeight, 60, 1080, defaults.outputHeight);
   return next;
 }
 

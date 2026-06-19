@@ -15,6 +15,9 @@
       --timer-weight: 800;
       --timer-font-family: "Segoe UI", "Pretendard", "Noto Sans KR", Arial, sans-serif;
       --outline-width: 4px;
+      --output-width: 320px;
+      --output-height: 140px;
+      --output-ratio: 320 / 140;
     }
 
     * {
@@ -38,6 +41,9 @@
 
     body.display-view {
       cursor: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     body.display-view.state-loading .timer {
@@ -61,10 +67,22 @@
       padding: 4vh 4vw;
     }
 
+    body.display-view .stage {
+      width: min(100vw, var(--output-width));
+      height: min(100vh, var(--output-height));
+      padding: 0;
+    }
+
     body.control-view .stage {
-      height: 22vh;
-      min-height: 118px;
-      padding: 12px 12px 6px;
+      width: min(var(--output-width), calc(100% - 24px));
+      height: auto;
+      aspect-ratio: var(--output-ratio);
+      margin: 12px auto 8px;
+      padding: 0;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.18);
+      overflow: hidden;
     }
 
     .timer-wrap {
@@ -508,6 +526,26 @@
       margin-top: 6px;
     }
 
+    .size-panel {
+      display: grid;
+      gap: 5px;
+      margin-top: 6px;
+    }
+
+    .size-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr);
+      gap: 6px;
+      align-items: center;
+      max-width: 240px;
+    }
+
+    .size-row span {
+      color: rgba(255, 255, 255, 0.66);
+      font-weight: 800;
+      text-align: center;
+    }
+
     .font-select {
       max-width: 240px;
       min-height: 32px;
@@ -539,7 +577,7 @@
 
     @media (max-width: 560px) {
       body.control-view .stage {
-        min-height: 130px;
+        width: calc(100% - 20px);
       }
 
       .panel {
@@ -656,6 +694,15 @@
       <div id="fontEmpty" class="font-empty">`fonts` 폴더에 폰트 파일을 넣으면 목록에 표시됩니다.</div>
     </div>
 
+    <div class="size-panel">
+      <label>OBS 출력 크기</label>
+      <div class="size-row">
+        <input id="outputWidth" type="number" min="120" max="1920" step="1" value="320" inputmode="numeric" aria-label="OBS 출력 너비">
+        <span>×</span>
+        <input id="outputHeight" type="number" min="60" max="1080" step="1" value="140" inputmode="numeric" aria-label="OBS 출력 높이">
+      </div>
+    </div>
+
     <div class="paint-palette" aria-label="색상 팔레트">
       <label>색상</label>
       <div class="paint-targets" role="group" aria-label="색상 적용 대상">
@@ -738,7 +785,9 @@
       fontFile: "",
       showHours: false,
       solidBg: false,
-      bgOpacity: 100
+      bgOpacity: 100,
+      outputWidth: 320,
+      outputHeight: 140
     };
 
     document.body.classList.add(isControlView ? "control-view" : "display-view");
@@ -791,6 +840,8 @@
       solidBg: document.getElementById("solidBg"),
       bgOpacity: document.getElementById("bgOpacity"),
       bgOpacityValue: document.getElementById("bgOpacityValue"),
+      outputWidth: document.getElementById("outputWidth"),
+      outputHeight: document.getElementById("outputHeight"),
       displayUrl: document.getElementById("displayUrl"),
       controlUrl: document.getElementById("controlUrl")
     };
@@ -879,6 +930,8 @@
       next.showHours = Boolean(next.showHours);
       next.solidBg = Boolean(next.solidBg);
       next.bgOpacity = clampNumber(next.bgOpacity, 0, 100, defaults.bgOpacity);
+      next.outputWidth = clampNumber(next.outputWidth, 120, 1920, defaults.outputWidth);
+      next.outputHeight = clampNumber(next.outputHeight, 60, 1080, defaults.outputHeight);
       return next;
     }
 
@@ -1279,6 +1332,8 @@
         els.solidBg.checked = state.solidBg;
         els.bgOpacity.value = state.bgOpacity;
         els.bgOpacityValue.textContent = `${state.bgOpacity}%`;
+        els.outputWidth.value = state.outputWidth;
+        els.outputHeight.value = state.outputHeight;
         updateFontButtons();
         if ((!state.running || fromRemote) && !draftTimeDirty) {
           writeInputSeconds(currentSeconds);
@@ -1290,6 +1345,9 @@
       document.documentElement.style.setProperty("--outline-width", `${state.outlineWidth}px`);
       document.documentElement.style.setProperty("--timer-size", `${state.fontSize}px`);
       document.documentElement.style.setProperty("--bg-opacity", String(state.bgOpacity / 100));
+      document.documentElement.style.setProperty("--output-width", `${state.outputWidth}px`);
+      document.documentElement.style.setProperty("--output-height", `${state.outputHeight}px`);
+      document.documentElement.style.setProperty("--output-ratio", `${state.outputWidth} / ${state.outputHeight}`);
       applyTimerFont();
       document.body.classList.toggle("solid-bg", state.solidBg);
       fitTimer();
@@ -1515,6 +1573,18 @@
         state.outlineWidth = Number(els.outlineWidth.value);
         syncAndRender();
       });
+
+      const updateOutputSize = () => {
+        freezeTime();
+        state.outputWidth = clampNumber(els.outputWidth.value, 120, 1920, defaults.outputWidth);
+        state.outputHeight = clampNumber(els.outputHeight.value, 60, 1080, defaults.outputHeight);
+        syncAndRender();
+      };
+
+      els.outputWidth.addEventListener("input", updateOutputSize);
+      els.outputWidth.addEventListener("change", updateOutputSize);
+      els.outputHeight.addEventListener("input", updateOutputSize);
+      els.outputHeight.addEventListener("change", updateOutputSize);
 
       els.fontSelect.addEventListener("change", () => {
         freezeTime();
