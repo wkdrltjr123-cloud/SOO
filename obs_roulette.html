@@ -133,6 +133,8 @@
     let hasAppliedState = false;
     let localSpinEndsAt = 0;
     let localSpinTimer = 0;
+    let localSpinFrame = 0;
+    let displayRotation = 0;
 
     function sanitizeRoom(value) {
       return String(value || "")
@@ -369,6 +371,33 @@
       return Math.max(0, roulette.spinDuration - (Date.now() - roulette.spinStartedAt));
     }
 
+    function normalizeDegrees(value) {
+      return ((value % 360) + 360) % 360;
+    }
+
+    function getVisualSpinRevolutions(duration) {
+      if (duration <= 2000) return 3;
+      if (duration <= 3000) return 4;
+      if (duration <= 5000) return 5;
+      return 6;
+    }
+
+    function getVisualTargetRotation(fromRotation, targetRotation, duration) {
+      const delta = (normalizeDegrees(targetRotation) - normalizeDegrees(fromRotation) + 360) % 360;
+      return fromRotation + (getVisualSpinRevolutions(duration) * 360) + delta;
+    }
+
+    function easeSpin(progress) {
+      const clamped = Math.min(1, Math.max(0, progress));
+      return 1 - Math.pow(1 - clamped, 4);
+    }
+
+    function setWheelRotation(rotation) {
+      displayRotation = rotation;
+      wheel.style.transition = "none";
+      wheel.style.transform = `rotate(${rotation}deg)`;
+    }
+
     function setRouletteClasses(roulette, isAnimating) {
       const live = roulette.visible || roulette.spinning || isAnimating;
       document.body.classList.toggle("roulette-live", live);
@@ -380,27 +409,46 @@
 
     function finishLocalSpin() {
       window.clearTimeout(localSpinTimer);
+      window.cancelAnimationFrame(localSpinFrame);
       localSpinTimer = 0;
+      localSpinFrame = 0;
       localSpinEndsAt = 0;
 
       if (!lastRoulette) return;
       lastRotation = lastRoulette.rotation;
-      wheel.style.transition = "none";
-      wheel.style.transform = `rotate(${lastRotation}deg)`;
+      setWheelRotation(lastRotation);
       setRouletteClasses(lastRoulette, false);
     }
 
     function startLocalSpin(roulette, duration) {
       window.clearTimeout(localSpinTimer);
+      window.cancelAnimationFrame(localSpinFrame);
       localSpinEndsAt = Date.now() + duration;
       lastSpinStartedAt = roulette.spinStartedAt;
 
       setRouletteClasses(roulette, true);
-      wheel.style.transition = "none";
-      wheel.style.transform = `rotate(${lastRotation}deg)`;
-      wheel.offsetHeight;
-      wheel.style.transition = `transform ${duration}ms cubic-bezier(0.12, 0.72, 0.08, 1)`;
-      wheel.style.transform = `rotate(${roulette.rotation}deg)`;
+      const startRotation = displayRotation || lastRotation;
+      const targetRotation = getVisualTargetRotation(startRotation, roulette.rotation, roulette.spinDuration);
+      const startedAt = performance.now();
+
+      function animateFrame(now) {
+        const progress = (now - startedAt) / duration;
+        const eased = easeSpin(progress);
+        const nextRotation = startRotation + ((targetRotation - startRotation) * eased);
+        setWheelRotation(nextRotation);
+
+        if (progress < 1 && localSpinEndsAt > Date.now()) {
+          localSpinFrame = window.requestAnimationFrame(animateFrame);
+          return;
+        }
+
+        lastRotation = targetRotation;
+        setWheelRotation(targetRotation);
+        localSpinFrame = 0;
+      }
+
+      setWheelRotation(startRotation);
+      localSpinFrame = window.requestAnimationFrame(animateFrame);
 
       localSpinTimer = window.setTimeout(finishLocalSpin, duration + 80);
     }
@@ -421,10 +469,10 @@
       if (!hasAppliedState && !roulette.spinning) {
         lastSpinStartedAt = roulette.spinStartedAt || lastSpinStartedAt;
         lastRotation = roulette.rotation;
+        displayRotation = lastRotation;
         hasAppliedState = true;
         setRouletteClasses(roulette, false);
-        wheel.style.transition = "none";
-        wheel.style.transform = `rotate(${lastRotation}deg)`;
+        setWheelRotation(lastRotation);
         return;
       }
 
@@ -432,9 +480,8 @@
 
       if (!live) {
         finishLocalSpin();
-        wheel.style.transition = "none";
         lastRotation = roulette.rotation;
-        wheel.style.transform = `rotate(${lastRotation}deg)`;
+        setWheelRotation(lastRotation);
         return;
       }
 
