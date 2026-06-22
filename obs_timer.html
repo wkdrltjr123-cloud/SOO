@@ -1072,6 +1072,30 @@
       <input id="rouletteUrl" type="text" readonly>
       <label for="controlUrl">조작 URL</label>
       <input id="controlUrl" type="text" readonly>
+      <label for="timerStartUrl">스트림덱 타이머 시작 URL</label>
+      <input id="timerStartUrl" type="text" readonly>
+      <label for="timerPauseUrl">스트림덱 타이머 일시정지 URL</label>
+      <input id="timerPauseUrl" type="text" readonly>
+      <label for="timerToggleUrl">스트림덱 타이머 시작/일시정지 URL</label>
+      <input id="timerToggleUrl" type="text" readonly>
+      <label for="timerStopUrl">스트림덱 타이머 정지 URL</label>
+      <input id="timerStopUrl" type="text" readonly>
+      <label for="timerResetUrl">스트림덱 시간 초기화 URL</label>
+      <input id="timerResetUrl" type="text" readonly>
+      <label for="timerMinusMinuteUrl">스트림덱 타이머 -1분 URL</label>
+      <input id="timerMinusMinuteUrl" type="text" readonly>
+      <label for="timerMinus10Url">스트림덱 타이머 -10초 URL</label>
+      <input id="timerMinus10Url" type="text" readonly>
+      <label for="timerMinus1Url">스트림덱 타이머 -1초 URL</label>
+      <input id="timerMinus1Url" type="text" readonly>
+      <label for="timerPlusMinuteUrl">스트림덱 타이머 +1분 URL</label>
+      <input id="timerPlusMinuteUrl" type="text" readonly>
+      <label for="timerPlus10Url">스트림덱 타이머 +10초 URL</label>
+      <input id="timerPlus10Url" type="text" readonly>
+      <label for="timerPlus1Url">스트림덱 타이머 +1초 URL</label>
+      <input id="timerPlus1Url" type="text" readonly>
+      <label for="rouletteSpinUrl">스트림덱 룰렛 돌리기 URL</label>
+      <input id="rouletteSpinUrl" type="text" readonly>
     </div>
 
     <p class="hint">OBS 소스에는 이 메뉴가 나오지 않습니다. 같은 방 코드의 방송 URL과 조작 URL이 서로 동기화됩니다.</p>
@@ -1260,7 +1284,19 @@
       outputHeight: document.getElementById("outputHeight"),
       displayUrl: document.getElementById("displayUrl"),
       rouletteUrl: document.getElementById("rouletteUrl"),
-      controlUrl: document.getElementById("controlUrl")
+      controlUrl: document.getElementById("controlUrl"),
+      timerStartUrl: document.getElementById("timerStartUrl"),
+      timerPauseUrl: document.getElementById("timerPauseUrl"),
+      timerToggleUrl: document.getElementById("timerToggleUrl"),
+      timerStopUrl: document.getElementById("timerStopUrl"),
+      timerResetUrl: document.getElementById("timerResetUrl"),
+      timerMinusMinuteUrl: document.getElementById("timerMinusMinuteUrl"),
+      timerMinus10Url: document.getElementById("timerMinus10Url"),
+      timerMinus1Url: document.getElementById("timerMinus1Url"),
+      timerPlusMinuteUrl: document.getElementById("timerPlusMinuteUrl"),
+      timerPlus10Url: document.getElementById("timerPlus10Url"),
+      timerPlus1Url: document.getElementById("timerPlus1Url"),
+      rouletteSpinUrl: document.getElementById("rouletteSpinUrl")
     };
 
     function sanitizeRoom(value) {
@@ -2120,9 +2156,29 @@
         const displayUrl = `${location.origin}/display?room=${encodeURIComponent(room)}`;
         const rouletteUrl = `${location.origin}/roulette?room=${encodeURIComponent(room)}`;
         const controlUrl = `${location.origin}/control?room=${encodeURIComponent(room)}&key=${encodeURIComponent(controlKey)}`;
+        const actionUrl = (path, extra = {}) => {
+          const actionParams = new URLSearchParams({
+            room,
+            key: controlKey,
+            ...extra
+          });
+          return `${location.origin}${path}?${actionParams.toString()}`;
+        };
         els.displayUrl.value = displayUrl;
         els.rouletteUrl.value = rouletteUrl;
         els.controlUrl.value = controlUrl;
+        els.timerStartUrl.value = actionUrl("/timer/start");
+        els.timerPauseUrl.value = actionUrl("/timer/pause");
+        els.timerToggleUrl.value = actionUrl("/timer/toggle");
+        els.timerStopUrl.value = actionUrl("/timer/stop");
+        els.timerResetUrl.value = actionUrl("/timer/reset");
+        els.timerMinusMinuteUrl.value = actionUrl("/timer/jump", { seconds: "-60" });
+        els.timerMinus10Url.value = actionUrl("/timer/jump", { seconds: "-10" });
+        els.timerMinus1Url.value = actionUrl("/timer/jump", { seconds: "-1" });
+        els.timerPlusMinuteUrl.value = actionUrl("/timer/jump", { seconds: "60" });
+        els.timerPlus10Url.value = actionUrl("/timer/jump", { seconds: "10" });
+        els.timerPlus1Url.value = actionUrl("/timer/jump", { seconds: "1" });
+        els.rouletteSpinUrl.value = actionUrl("/roulette/spin");
         els.toggleRun.textContent = state.running ? "일시정지" : "시작";
         els.modeButtons.forEach((button) => {
           button.classList.toggle("active", button.dataset.mode === state.mode);

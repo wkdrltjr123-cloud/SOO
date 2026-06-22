@@ -311,6 +311,9 @@ function getRoomRecord(room) {
 function getRoomState(room) {
   const record = getRoomRecord(room);
   settleCountdown(record);
+  if (settleRouletteSpin(record)) {
+    saveRooms();
+  }
   return record.state;
 }
 
@@ -325,6 +328,184 @@ function settleCountdown(record) {
     roomState.lastStartedAt = Date.now();
     saveRooms();
   }
+}
+
+function freezeTimer(record) {
+  const roomState = record.state;
+  if (!roomState.running || !roomState.lastStartedAt) return;
+
+  const elapsed = Math.max(0, (Date.now() - roomState.lastStartedAt) / 1000);
+  if (roomState.mode === "down") {
+    roomState.remaining = Math.max(0, roomState.remaining - elapsed);
+    if (roomState.remaining <= 0) {
+      roomState.running = false;
+    }
+  } else {
+    roomState.elapsed = Math.max(0, roomState.elapsed + elapsed);
+  }
+  roomState.lastStartedAt = Date.now();
+}
+
+function startTimer(record) {
+  const roomState = record.state;
+  freezeTimer(record);
+
+  if (roomState.mode === "down") {
+    if (roomState.remaining <= 0 && roomState.duration > 0) {
+      roomState.remaining = roomState.duration;
+    }
+    if (roomState.remaining <= 0) {
+      roomState.running = false;
+      roomState.lastStartedAt = Date.now();
+      return { ok: false, status: "not_ready", message: "Timer duration is not set" };
+    }
+  }
+
+  roomState.running = true;
+  roomState.lastStartedAt = Date.now();
+  return { ok: true, status: "started" };
+}
+
+function pauseTimer(record, status = "paused") {
+  freezeTimer(record);
+  record.state.running = false;
+  record.state.lastStartedAt = Date.now();
+  return { ok: true, status };
+}
+
+function resetTimer(record) {
+  record.state.running = false;
+  record.state.duration = 0;
+  record.state.remaining = 0;
+  record.state.elapsed = 0;
+  record.state.lastStartedAt = Date.now();
+  return { ok: true, status: "reset" };
+}
+
+function jumpTimer(record, seconds) {
+  freezeTimer(record);
+  const roomState = record.state;
+  const delta = clampNumber(seconds, -86400, 86400, 0);
+
+  if (roomState.mode === "down") {
+    roomState.remaining = Math.max(0, roomState.remaining + delta);
+    roomState.duration = Math.max(roomState.duration, roomState.remaining);
+    if (roomState.remaining <= 0) {
+      roomState.running = false;
+    }
+  } else {
+    roomState.elapsed = Math.max(0, roomState.elapsed + delta);
+  }
+
+  roomState.lastStartedAt = Date.now();
+  return { ok: true, status: "jumped", seconds: delta };
+}
+
+function applyTimerAction(record, action, url) {
+  if (action === "start") return startTimer(record);
+  if (action === "pause") return pauseTimer(record, "paused");
+  if (action === "stop") return pauseTimer(record, "stopped");
+  if (action === "toggle") {
+    return record.state.running ? pauseTimer(record, "paused") : startTimer(record);
+  }
+  if (action === "reset") return resetTimer(record);
+  if (action === "jump") return jumpTimer(record, url.searchParams.get("seconds") || url.searchParams.get("delta"));
+  return { ok: false, status: "unknown", message: "Unknown timer action" };
+}
+
+function getRouletteTotalWeight(roulette) {
+  return roulette.options.reduce((sum, option) => sum + getOptionWeight(option), 0);
+}
+
+function getRouletteSegmentCenter(roulette, index) {
+  const total = getRouletteTotalWeight(roulette);
+  let cursor = 0;
+
+  for (let i = 0; i < roulette.options.length; i += 1) {
+    const span = (getOptionWeight(roulette.options[i]) / total) * 360;
+    if (i === index) return cursor + span / 2;
+    cursor += span;
+  }
+
+  return 0;
+}
+
+function getRouletteVisualCenter(center) {
+  return center - 90;
+}
+
+function pickRouletteResultIndex(roulette) {
+  const total = getRouletteTotalWeight(roulette);
+  let target = Math.random() * total;
+
+  for (let index = 0; index < roulette.options.length; index += 1) {
+    target -= getOptionWeight(roulette.options[index]);
+    if (target <= 0) return index;
+  }
+
+  return roulette.options.length - 1;
+}
+
+function getRouletteTargetRotation(roulette, resultIndex) {
+  const current = Number(roulette.rotation) || 0;
+  const currentMod = ((current % 360) + 360) % 360;
+  const visualCenter = getRouletteVisualCenter(getRouletteSegmentCenter(roulette, resultIndex));
+  const alignDelta = (360 - ((currentMod + visualCenter) % 360)) % 360;
+  return current + (360 * 7) + alignDelta;
+}
+
+function addRouletteHistory(roulette, resultIndex) {
+  const option = roulette.options[resultIndex];
+  if (!option) return;
+
+  const total = getRouletteTotalWeight(roulette);
+  const probability = total > 0 ? (getOptionWeight(option) / total) * 100 : 0;
+  roulette.history = [
+    { label: option.label, probability, at: Date.now() },
+    ...roulette.history
+  ].slice(0, 30);
+}
+
+function settleRouletteSpin(record) {
+  const roulette = record.state.roulette;
+  if (!roulette.spinning || !roulette.spinStartedAt) return false;
+
+  const elapsed = Date.now() - roulette.spinStartedAt;
+  if (elapsed < roulette.spinDuration) return false;
+
+  roulette.spinning = false;
+  if (roulette.resultIndex >= 0) {
+    addRouletteHistory(roulette, roulette.resultIndex);
+  }
+  return true;
+}
+
+function startRouletteSpin(record) {
+  settleRouletteSpin(record);
+
+  const roulette = record.state.roulette;
+  if (roulette.spinning) {
+    return { ok: false, status: "spinning", message: "Roulette is already spinning" };
+  }
+
+  if (roulette.step !== "spin") {
+    return { ok: false, status: "not_ready", message: "Roulette options are not ready" };
+  }
+
+  const resultIndex = pickRouletteResultIndex(roulette);
+  roulette.visible = true;
+  roulette.spinning = true;
+  roulette.spinStartedAt = Date.now();
+  roulette.spinDuration = normalizeRouletteSpinDuration(roulette.spinDuration);
+  roulette.resultIndex = resultIndex;
+  roulette.rotation = getRouletteTargetRotation(roulette, resultIndex);
+
+  return {
+    ok: true,
+    status: "started",
+    resultIndex,
+    result: roulette.options[resultIndex]?.label || ""
+  };
 }
 
 function send(res, status, body, type = "text/plain; charset=utf-8") {
@@ -414,6 +595,57 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname.startsWith("/fonts/")) {
     serveFont(res, decodeURIComponent(url.pathname.slice("/fonts/".length)));
+    return;
+  }
+
+  if ((req.method === "GET" || req.method === "POST") && url.pathname.startsWith("/timer/")) {
+    const room = getRoomName(url);
+    const key = sanitizeKey(url.searchParams.get("key"));
+    const record = getRoomRecord(room);
+    const action = sanitizeRoom(url.pathname.slice("/timer/".length));
+
+    if (!key) {
+      send(res, 403, JSON.stringify({ ok: false, error: "Missing control key" }), "application/json; charset=utf-8");
+      return;
+    }
+
+    if (record.key && record.key !== key) {
+      send(res, 403, JSON.stringify({ ok: false, error: "Invalid control key" }), "application/json; charset=utf-8");
+      return;
+    }
+
+    if (!record.key && key) {
+      record.key = key;
+    }
+
+    const result = applyTimerAction(record, action, url);
+    saveRooms();
+    send(res, result.ok ? 200 : 400, JSON.stringify({ ...result, state: record.state }), "application/json; charset=utf-8");
+    return;
+  }
+
+  if ((req.method === "GET" || req.method === "POST") && (url.pathname === "/roulette/spin" || url.pathname === "/roulette-spin")) {
+    const room = getRoomName(url);
+    const key = sanitizeKey(url.searchParams.get("key"));
+    const record = getRoomRecord(room);
+
+    if (!key) {
+      send(res, 403, JSON.stringify({ ok: false, error: "Missing control key" }), "application/json; charset=utf-8");
+      return;
+    }
+
+    if (record.key && record.key !== key) {
+      send(res, 403, JSON.stringify({ ok: false, error: "Invalid control key" }), "application/json; charset=utf-8");
+      return;
+    }
+
+    if (!record.key && key) {
+      record.key = key;
+    }
+
+    const result = startRouletteSpin(record);
+    saveRooms();
+    send(res, 200, JSON.stringify({ ...result, state: record.state }), "application/json; charset=utf-8");
     return;
   }
 
