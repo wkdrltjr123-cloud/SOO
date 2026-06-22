@@ -14,6 +14,7 @@ const fontExtensions = new Set([".woff2", ".woff", ".ttf", ".otf"]);
 const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
 const defaultRouletteSpinDuration = 3000;
 const rouletteSpinSettleDelay = 900;
+const rouletteHistoryLimit = 500;
 
 const defaults = {
   duration: 0,
@@ -196,7 +197,7 @@ function normalizeRoulette(value) {
   applyRouletteProbabilityWeights(options);
 
   const step = ["count", "options", "spin"].includes(source.step) ? source.step : defaultsRoulette.step;
-  const history = Array.isArray(source.history) ? source.history.slice(0, 30).map((item) => ({
+  const history = Array.isArray(source.history) ? source.history.slice(0, rouletteHistoryLimit).map((item) => ({
     label: sanitizeRouletteLabel(item?.label, "결과"),
     probability: Number.isFinite(Number(item?.probability)) ? clampNumber(item.probability, 0, 100, 0) : null,
     at: Number(item?.at) || Date.now()
@@ -464,7 +465,7 @@ function addRouletteHistory(roulette, resultIndex) {
   roulette.history = [
     { label: option.label, probability, at: Date.now() },
     ...roulette.history
-  ].slice(0, 30);
+  ].slice(0, rouletteHistoryLimit);
 }
 
 function settleRouletteSpin(record) {

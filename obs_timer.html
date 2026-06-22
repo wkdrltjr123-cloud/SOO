@@ -908,8 +908,10 @@
     .roulette-history-list {
       display: grid;
       gap: 4px;
+      max-height: 260px;
       margin: 0;
       padding: 0;
+      overflow-y: auto;
       list-style: none;
     }
 
@@ -1249,6 +1251,7 @@
     ];
     const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
     const defaultRouletteSpinDuration = 3000;
+    const rouletteHistoryLimit = 500;
 
     const defaults = {
       duration: 0,
@@ -1565,7 +1568,7 @@
       applyRouletteProbabilityWeights(options);
 
       const step = ["count", "options", "spin"].includes(source.step) ? source.step : defaultsRoulette.step;
-      const history = Array.isArray(source.history) ? source.history.slice(0, 30).map((item) => ({
+      const history = Array.isArray(source.history) ? source.history.slice(0, rouletteHistoryLimit).map((item) => ({
         label: sanitizeRouletteLabel(item?.label, "결과"),
         probability: Number.isFinite(Number(item?.probability)) ? clampNumber(item.probability, 0, 100, 0) : null,
         at: Number(item?.at) || Date.now()
@@ -2165,7 +2168,7 @@
         empty.textContent = "아직 기록이 없습니다.";
         fragment.appendChild(empty);
       } else {
-        state.roulette.history.slice(0, 10).forEach((item) => {
+        state.roulette.history.forEach((item) => {
           const row = document.createElement("li");
           const label = document.createElement("span");
           const time = document.createElement("span");
@@ -2455,7 +2458,7 @@
       state.roulette.history = [
         { label: option.label, probability, at: Date.now() },
         ...state.roulette.history
-      ].slice(0, 30);
+      ].slice(0, rouletteHistoryLimit);
     }
 
     function finishRouletteSpin() {
