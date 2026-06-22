@@ -120,6 +120,8 @@
     ];
     const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
     const defaultRouletteSpinDuration = 3000;
+    const statePollInterval = 100;
+    const minimumVisibleSpinDuration = 1200;
 
     const wheel = document.getElementById("rouletteWheel");
     const winner = document.getElementById("rouletteWinner");
@@ -128,6 +130,9 @@
     let lastRotation = 0;
     let lastSpinStartedAt = 0;
     let lastRoulette = null;
+    let hasAppliedState = false;
+    let localSpinEndsAt = 0;
+    let localSpinTimer = 0;
 
     function sanitizeRoom(value) {
       return String(value || "")
@@ -364,37 +369,88 @@
       return Math.max(0, roulette.spinDuration - (Date.now() - roulette.spinStartedAt));
     }
 
-    function applyRoulette(roulette) {
-      lastRoulette = roulette;
-      const live = roulette.visible || roulette.spinning;
+    function setRouletteClasses(roulette, isAnimating) {
+      const live = roulette.visible || roulette.spinning || isAnimating;
       document.body.classList.toggle("roulette-live", live);
-      document.body.classList.toggle("has-result", live && !roulette.spinning && roulette.resultIndex >= 0);
-      drawRoulette(roulette);
+      document.body.classList.toggle("has-result", live && !roulette.spinning && !isAnimating && roulette.resultIndex >= 0);
 
       const result = roulette.resultIndex >= 0 ? roulette.options[roulette.resultIndex]?.label : "";
-      winner.textContent = live && !roulette.spinning && result ? `🎉${result}🎉` : "";
+      winner.textContent = live && !roulette.spinning && !isAnimating && result ? `🎉${result}🎉` : "";
+    }
+
+    function finishLocalSpin() {
+      window.clearTimeout(localSpinTimer);
+      localSpinTimer = 0;
+      localSpinEndsAt = 0;
+
+      if (!lastRoulette) return;
+      lastRotation = lastRoulette.rotation;
+      wheel.style.transition = "none";
+      wheel.style.transform = `rotate(${lastRotation}deg)`;
+      setRouletteClasses(lastRoulette, false);
+    }
+
+    function startLocalSpin(roulette, duration) {
+      window.clearTimeout(localSpinTimer);
+      localSpinEndsAt = Date.now() + duration;
+      lastSpinStartedAt = roulette.spinStartedAt;
+
+      setRouletteClasses(roulette, true);
+      wheel.style.transition = "none";
+      wheel.style.transform = `rotate(${lastRotation}deg)`;
+      wheel.offsetHeight;
+      wheel.style.transition = `transform ${duration}ms cubic-bezier(0.12, 0.72, 0.08, 1)`;
+      wheel.style.transform = `rotate(${roulette.rotation}deg)`;
+
+      localSpinTimer = window.setTimeout(finishLocalSpin, duration + 80);
+    }
+
+    function applyRoulette(roulette) {
+      lastRoulette = roulette;
+      drawRoulette(roulette);
+
+      const now = Date.now();
+      const isLocalAnimating = localSpinEndsAt > now;
+      const live = roulette.visible || roulette.spinning || isLocalAnimating;
+      const hasNewSpin = roulette.spinStartedAt
+        && roulette.spinStartedAt !== lastSpinStartedAt
+        && roulette.visible
+        && roulette.resultIndex >= 0
+        && (roulette.spinning || hasAppliedState);
+
+      if (!hasAppliedState && !roulette.spinning) {
+        lastSpinStartedAt = roulette.spinStartedAt || lastSpinStartedAt;
+        lastRotation = roulette.rotation;
+        hasAppliedState = true;
+        setRouletteClasses(roulette, false);
+        wheel.style.transition = "none";
+        wheel.style.transform = `rotate(${lastRotation}deg)`;
+        return;
+      }
+
+      hasAppliedState = true;
 
       if (!live) {
+        finishLocalSpin();
         wheel.style.transition = "none";
         lastRotation = roulette.rotation;
         wheel.style.transform = `rotate(${lastRotation}deg)`;
         return;
       }
 
-      const remaining = getRemainingDuration(roulette);
-      if (roulette.spinning && roulette.spinStartedAt !== lastSpinStartedAt && remaining > 0) {
-        wheel.style.transition = "none";
-        wheel.style.transform = `rotate(${lastRotation}deg)`;
-        wheel.offsetHeight;
-        wheel.style.transition = `transform ${remaining}ms cubic-bezier(0.12, 0.72, 0.08, 1)`;
-        wheel.style.transform = `rotate(${roulette.rotation}deg)`;
-        lastSpinStartedAt = roulette.spinStartedAt;
-      } else {
-        wheel.style.transition = "none";
-        wheel.style.transform = `rotate(${roulette.rotation}deg)`;
+      if (hasNewSpin) {
+        const remaining = getRemainingDuration(roulette);
+        startLocalSpin(roulette, Math.max(remaining, minimumVisibleSpinDuration));
+        return;
       }
 
-      lastRotation = roulette.rotation;
+      if (isLocalAnimating) {
+        setRouletteClasses(roulette, true);
+        return;
+      }
+
+      finishLocalSpin();
+      setRouletteClasses(roulette, false);
     }
 
     async function fetchState() {
@@ -422,7 +478,7 @@
     }
 
     fetchState();
-    window.setInterval(fetchState, 250);
+    window.setInterval(fetchState, statePollInterval);
   </script>
 </body>
 </html>
