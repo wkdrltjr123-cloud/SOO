@@ -121,6 +121,7 @@
     }
 
     .roulette-wheel {
+      position: relative;
       width: min(82%, 82vh);
       max-width: calc(var(--output-width) * 0.82);
       max-height: calc(var(--output-height) * 0.82);
@@ -129,8 +130,29 @@
       border-radius: 50%;
       background: var(--roulette-bg);
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+      overflow: hidden;
       transform: rotate(var(--roulette-rotation));
       transition: transform var(--roulette-spin-duration) cubic-bezier(0.12, 0.72, 0.08, 1);
+    }
+
+    .roulette-label {
+      position: absolute;
+      z-index: 1;
+      width: 35%;
+      overflow: hidden;
+      color: #fff;
+      font-size: clamp(10px, 2.5vw, 16px);
+      font-weight: 900;
+      line-height: 1.12;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+      paint-order: stroke fill;
+      pointer-events: none;
+      text-align: center;
+      text-overflow: ellipsis;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+      transform: translate(-50%, -50%);
+      -webkit-text-stroke: 3px rgba(0, 0, 0, 0.78);
     }
 
     .timer {
@@ -704,6 +726,11 @@
       width: min(280px, 72vw);
       max-width: none;
       max-height: none;
+    }
+
+    .roulette-preview .roulette-label {
+      font-size: clamp(10px, 2vw, 14px);
+      -webkit-text-stroke-width: 2px;
     }
 
     .roulette-primary {
@@ -1771,6 +1798,31 @@
       wheel.style.background = getRouletteBackground();
       wheel.style.setProperty("--roulette-rotation", `${state.roulette.rotation}deg`);
       wheel.style.setProperty("--roulette-spin-duration", `${duration}ms`);
+      renderRouletteLabels(wheel);
+    }
+
+    function renderRouletteLabels(wheel) {
+      if (!wheel) return;
+      const total = getRouletteTotalWeight();
+      const labelRadius = state.roulette.options.length > 10 ? 28 : state.roulette.options.length > 6 ? 30 : 31;
+      let cursor = 0;
+      const fragment = document.createDocumentFragment();
+
+      state.roulette.options.forEach((option, index) => {
+        const span = (Math.max(1, Number(option.weight) || 1) / total) * 360;
+        const center = cursor + span / 2;
+        const radians = center * Math.PI / 180;
+        const label = document.createElement("span");
+        label.className = "roulette-label";
+        label.textContent = option.label;
+        label.style.left = `${50 + Math.sin(radians) * labelRadius}%`;
+        label.style.top = `${50 - Math.cos(radians) * labelRadius}%`;
+        label.style.color = rouletteColors[index % rouletteColors.length] === "#fef08a" ? "#111827" : "#ffffff";
+        fragment.appendChild(label);
+        cursor += span;
+      });
+
+      wheel.replaceChildren(fragment);
     }
 
     function renderRouletteOptionInputs() {
@@ -2054,7 +2106,7 @@
       readRouletteOptionsFromInputs();
       state.roulette.step = "spin";
       state.roulette.resultIndex = -1;
-      state.roulette.visible = false;
+      state.roulette.visible = true;
       state.roulette.spinning = false;
       syncAndRender();
     }

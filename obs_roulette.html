@@ -58,14 +58,36 @@
     }
 
     .roulette-wheel {
+      position: relative;
       width: min(82vw, 82vh);
       aspect-ratio: 1;
       border: max(2px, 0.45vmin) solid rgba(0, 0, 0, 0.78);
       border-radius: 50%;
       background: var(--roulette-bg);
       box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
+      overflow: hidden;
       transform: rotate(var(--roulette-rotation));
       transition: transform var(--roulette-spin-duration) cubic-bezier(0.12, 0.72, 0.08, 1);
+    }
+
+    .roulette-label {
+      position: absolute;
+      z-index: 1;
+      width: 35%;
+      overflow: hidden;
+      color: #fff;
+      font-size: clamp(12px, 3.2vmin, 30px);
+      font-weight: 900;
+      line-height: 1.12;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+      paint-order: stroke fill;
+      pointer-events: none;
+      text-align: center;
+      text-overflow: ellipsis;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+      transform: translate(-50%, -50%);
+      -webkit-text-stroke: max(2px, 0.35vmin) rgba(0, 0, 0, 0.78);
     }
   </style>
 </head>
@@ -143,6 +165,29 @@
       return `conic-gradient(from -90deg, ${stops.join(", ")})`;
     }
 
+    function renderRouletteLabels(roulette) {
+      const total = getTotalWeight(roulette);
+      const labelRadius = roulette.options.length > 10 ? 28 : roulette.options.length > 6 ? 30 : 31;
+      let cursor = 0;
+      const fragment = document.createDocumentFragment();
+
+      roulette.options.forEach((option, index) => {
+        const span = (Math.max(1, Number(option.weight) || 1) / total) * 360;
+        const center = cursor + span / 2;
+        const radians = center * Math.PI / 180;
+        const label = document.createElement("span");
+        label.className = "roulette-label";
+        label.textContent = option.label;
+        label.style.left = `${50 + Math.sin(radians) * labelRadius}%`;
+        label.style.top = `${50 - Math.cos(radians) * labelRadius}%`;
+        label.style.color = rouletteColors[index % rouletteColors.length] === "#fef08a" ? "#111827" : "#ffffff";
+        fragment.appendChild(label);
+        cursor += span;
+      });
+
+      wheel.replaceChildren(fragment);
+    }
+
     function getRemainingDuration(roulette) {
       if (!roulette.spinning || !roulette.spinStartedAt) return 0;
       return Math.max(0, roulette.spinDuration - (Date.now() - roulette.spinStartedAt));
@@ -152,6 +197,7 @@
       const live = roulette.visible || roulette.spinning;
       document.body.classList.toggle("roulette-live", live);
       document.documentElement.style.setProperty("--roulette-bg", getRouletteBackground(roulette));
+      renderRouletteLabels(roulette);
 
       if (!live) {
         wheel.style.transition = "none";
