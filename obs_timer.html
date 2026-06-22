@@ -1398,6 +1398,7 @@
       const step = ["count", "options", "spin"].includes(source.step) ? source.step : defaultsRoulette.step;
       const history = Array.isArray(source.history) ? source.history.slice(0, 30).map((item) => ({
         label: sanitizeRouletteLabel(item?.label, "결과"),
+        probability: Number.isFinite(Number(item?.probability)) ? clampNumber(item.probability, 0, 100, 0) : null,
         at: Number(item?.at) || Date.now()
       })) : [];
 
@@ -1959,6 +1960,13 @@
       els.rouletteProbabilityList.replaceChildren(fragment);
     }
 
+    function formatRouletteProbability(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "";
+      const rounded = Math.round(number * 10) / 10;
+      return Number.isInteger(rounded) ? `${rounded}%` : `${rounded.toFixed(1)}%`;
+    }
+
     function renderRouletteHistory() {
       if (!isControlView) return;
       const fragment = document.createDocumentFragment();
@@ -1971,7 +1979,8 @@
           const row = document.createElement("li");
           const label = document.createElement("span");
           const time = document.createElement("span");
-          label.textContent = item.label;
+          const probability = formatRouletteProbability(item.probability);
+          label.textContent = probability ? `${item.label}(${probability})` : item.label;
           time.textContent = new Date(item.at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
           row.append(label, time);
           fragment.appendChild(row);
@@ -2223,8 +2232,10 @@
     function addRouletteHistory(resultIndex) {
       const option = state.roulette.options[resultIndex];
       if (!option) return;
+      const total = getRouletteTotalWeight();
+      const probability = total > 0 ? (Math.max(1, Number(option.weight) || 1) / total) * 100 : 0;
       state.roulette.history = [
-        { label: option.label, at: Date.now() },
+        { label: option.label, probability, at: Date.now() },
         ...state.roulette.history
       ].slice(0, 30);
     }
