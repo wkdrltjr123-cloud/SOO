@@ -196,6 +196,8 @@
       justify-content: space-between;
       gap: 10px;
       margin-bottom: 8px;
+      cursor: pointer;
+      user-select: none;
     }
 
     .panel-title {
@@ -214,6 +216,41 @@
       color: rgba(255, 255, 255, 0.88);
       font-size: 12px;
       font-weight: 700;
+    }
+
+    .panel-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .collapse-button {
+      width: auto;
+      min-height: 28px;
+      padding: 4px 8px;
+      border-color: rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.09);
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .timer-panel-body {
+      display: block;
+    }
+
+    body.control-view.timer-collapsed .stage,
+    body.control-view.timer-collapsed .timer-panel-body {
+      display: none;
+    }
+
+    body.control-view.timer-collapsed .panel {
+      margin-top: 12px;
+    }
+
+    body.control-view.timer-collapsed .panel-header {
+      margin-bottom: 0;
     }
 
     .grid {
@@ -608,11 +645,15 @@
   </main>
 
   <section class="panel" aria-label="타이머 조작 패널">
-    <div class="panel-header">
+    <div id="timerPanelHeader" class="panel-header" role="button" tabindex="0" aria-expanded="true" aria-controls="timerPanelBody">
       <h1 class="panel-title">OBS 타이머</h1>
-      <div class="status-pill">컨트롤러</div>
+      <div class="panel-actions">
+        <div class="status-pill">컨트롤러</div>
+        <button id="timerCollapseButton" class="collapse-button" type="button">접기</button>
+      </div>
     </div>
 
+    <div id="timerPanelBody" class="timer-panel-body">
     <div class="grid">
       <div class="field">
         <label for="hours">시</label>
@@ -754,6 +795,7 @@
     </div>
 
     <p class="hint">OBS 소스에는 이 메뉴가 나오지 않습니다. 같은 방 코드의 방송 URL과 조작 URL이 서로 동기화됩니다.</p>
+    </div>
   </section>
 
   <script>
@@ -768,6 +810,7 @@
     const fontsEndpoint = "/fonts";
     const storageKey = "obsTimerState.v2";
     const legacyStorageKey = "obsTimerState";
+    const timerPanelCollapseStorageKey = "obsTimerPanelCollapsed";
     const channelName = "obs-timer-control";
     const channel = !isServerMode && "BroadcastChannel" in window ? new BroadcastChannel(channelName) : null;
 
@@ -809,10 +852,15 @@
     let needsServerPost = false;
     let lastServerPostAt = 0;
     let lastLocalChangeAt = 0;
+    let timerPanelCollapsed = false;
     let rafId = 0;
 
     const els = {
+      stage: document.querySelector(".stage"),
       timer: document.getElementById("timer"),
+      timerPanelHeader: document.getElementById("timerPanelHeader"),
+      timerPanelBody: document.getElementById("timerPanelBody"),
+      timerCollapseButton: document.getElementById("timerCollapseButton"),
       hours: document.getElementById("hours"),
       minutes: document.getElementById("minutes"),
       seconds: document.getElementById("seconds"),
@@ -1018,6 +1066,37 @@
     function updateFontButtons() {
       if (!isControlView) return;
       els.fontSelect.value = state.fontFile;
+    }
+
+    function readTimerPanelCollapsed() {
+      if (!isControlView) return false;
+      try {
+        return localStorage.getItem(timerPanelCollapseStorageKey) === "1";
+      } catch {
+        return false;
+      }
+    }
+
+    function setTimerPanelCollapsed(collapsed, persist = true) {
+      if (!isControlView) return;
+      timerPanelCollapsed = Boolean(collapsed);
+      document.body.classList.toggle("timer-collapsed", timerPanelCollapsed);
+      els.timerPanelHeader.setAttribute("aria-expanded", String(!timerPanelCollapsed));
+      els.timerCollapseButton.textContent = timerPanelCollapsed ? "펼치기" : "접기";
+      if (persist) {
+        try {
+          localStorage.setItem(timerPanelCollapseStorageKey, timerPanelCollapsed ? "1" : "0");
+        } catch {
+          // Ignore storage failures in private browsing modes.
+        }
+      }
+      if (!timerPanelCollapsed) {
+        window.requestAnimationFrame(fitTimer);
+      }
+    }
+
+    function toggleTimerPanelCollapsed() {
+      setTimerPanelCollapsed(!timerPanelCollapsed);
     }
 
     function saveState(emit = true) {
@@ -1444,6 +1523,28 @@
 
     function bindController() {
       if (!isControlView) return;
+
+      setTimerPanelCollapsed(readTimerPanelCollapsed(), false);
+
+      els.timerPanelHeader.addEventListener("click", (event) => {
+        if (event.target === els.timerCollapseButton) return;
+        toggleTimerPanelCollapsed();
+      });
+
+      els.timerPanelHeader.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        toggleTimerPanelCollapsed();
+      });
+
+      els.timerCollapseButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleTimerPanelCollapsed();
+      });
+
+      els.stage.addEventListener("click", () => {
+        toggleTimerPanelCollapsed();
+      });
 
       els.timeInputs.forEach((input) => {
         input.addEventListener("input", () => {
