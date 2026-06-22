@@ -118,6 +118,8 @@
       "#f472b6", "#34d399", "#facc15", "#60a5fa", "#fb7185",
       "#a3e635", "#f97316", "#22d3ee", "#e879f9", "#fef08a"
     ];
+    const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
+    const defaultRouletteSpinDuration = 3000;
 
     const wheel = document.getElementById("rouletteWheel");
     const winner = document.getElementById("rouletteWinner");
@@ -145,6 +147,14 @@
       return label || fallback;
     }
 
+    function normalizeRouletteSpinDuration(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return defaultRouletteSpinDuration;
+      return rouletteSpinDurations.reduce((best, current) => (
+        Math.abs(current - number) < Math.abs(best - number) ? current : best
+      ), rouletteSpinDurations[0]);
+    }
+
     function normalizeRoulette(value) {
       const source = value && typeof value === "object" ? value : {};
       const count = clampNumber(source.count, 1, 15, 2);
@@ -166,7 +176,7 @@
         spinning: Boolean(source.spinning),
         rotation: Number(source.rotation) || 0,
         spinStartedAt: Number(source.spinStartedAt) || 0,
-        spinDuration: clampNumber(source.spinDuration, 1800, 12000, 5200),
+        spinDuration: normalizeRouletteSpinDuration(source.spinDuration),
         resultIndex: clampNumber(source.resultIndex, -1, count - 1, -1)
       };
     }

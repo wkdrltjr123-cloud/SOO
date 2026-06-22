@@ -690,6 +690,20 @@
       gap: 6px;
     }
 
+    .roulette-setting-row {
+      display: grid;
+      width: min(240px, 100%);
+      gap: 6px;
+      margin: 12px auto 0;
+      text-align: left;
+    }
+
+    .roulette-setting-row label {
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
     .roulette-count-control button {
       width: 38px;
       min-height: 36px;
@@ -758,6 +772,10 @@
     .roulette-options {
       display: grid;
       gap: 8px;
+    }
+
+    .roulette-options + .roulette-primary {
+      margin-top: 18px;
     }
 
     .roulette-option-row {
@@ -1071,6 +1089,17 @@
           <button id="rouletteCountMinus" type="button">-</button>
         </div>
         <p class="roulette-subhint">(1개~15개 설정가능)</p>
+        <div class="roulette-setting-row">
+          <label for="rouletteSpinDuration">돌아가는 시간</label>
+          <select id="rouletteSpinDuration" aria-label="룰렛 돌아가는 시간">
+            <option value="2000">2초</option>
+            <option value="3000">3초</option>
+            <option value="4000">4초</option>
+            <option value="5000">5초</option>
+            <option value="6000">6초</option>
+            <option value="8000">8초</option>
+          </select>
+        </div>
         <div class="roulette-preview">
           <div class="roulette-wheel" id="rouletteCountWheel"></div>
         </div>
@@ -1127,6 +1156,8 @@
       "#f472b6", "#34d399", "#facc15", "#60a5fa", "#fb7185",
       "#a3e635", "#f97316", "#22d3ee", "#e879f9", "#fef08a"
     ];
+    const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
+    const defaultRouletteSpinDuration = 3000;
 
     const defaults = {
       duration: 0,
@@ -1184,6 +1215,7 @@
       rouletteCountPlus: document.getElementById("rouletteCountPlus"),
       rouletteCountMinus: document.getElementById("rouletteCountMinus"),
       rouletteCountValue: document.getElementById("rouletteCountValue"),
+      rouletteSpinDuration: document.getElementById("rouletteSpinDuration"),
       rouletteConfirmCount: document.getElementById("rouletteConfirmCount"),
       rouletteOptionInputs: document.getElementById("rouletteOptionInputs"),
       rouletteConfirmOptions: document.getElementById("rouletteConfirmOptions"),
@@ -1317,6 +1349,14 @@
       return next;
     }
 
+    function normalizeRouletteSpinDuration(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return defaultRouletteSpinDuration;
+      return rouletteSpinDurations.reduce((best, current) => (
+        Math.abs(current - number) < Math.abs(best - number) ? current : best
+      ), rouletteSpinDurations[0]);
+    }
+
     function createDefaultRoulette() {
       return {
         step: "count",
@@ -1329,7 +1369,7 @@
         spinning: false,
         rotation: 0,
         spinStartedAt: 0,
-        spinDuration: 5200,
+        spinDuration: defaultRouletteSpinDuration,
         resultIndex: -1,
         history: []
       };
@@ -1371,7 +1411,7 @@
         spinning: Boolean(source.spinning),
         rotation: Number(source.rotation) || 0,
         spinStartedAt: Number(source.spinStartedAt) || 0,
-        spinDuration: clampNumber(source.spinDuration, 1800, 12000, defaultsRoulette.spinDuration),
+        spinDuration: normalizeRouletteSpinDuration(source.spinDuration),
         resultIndex: clampInt(source.resultIndex, -1, count - 1),
         history
       };
@@ -1958,6 +1998,7 @@
       els.rouletteStepOptions.hidden = state.roulette.step !== "options";
       els.rouletteStepSpin.hidden = state.roulette.step !== "spin";
       els.rouletteCountValue.textContent = state.roulette.count;
+      els.rouletteSpinDuration.value = String(state.roulette.spinDuration);
       applyRouletteWheelStyle(els.rouletteCountWheel, 0);
       applyRouletteWheelStyle(els.rouletteControlWheel, remainingDuration);
       renderRouletteOptionInputs();
@@ -2201,7 +2242,7 @@
       state.roulette.visible = true;
       state.roulette.spinning = true;
       state.roulette.spinStartedAt = Date.now();
-      state.roulette.spinDuration = 5200;
+      state.roulette.spinDuration = normalizeRouletteSpinDuration(state.roulette.spinDuration);
       state.roulette.resultIndex = resultIndex;
       state.roulette.rotation = getRouletteTargetRotation(resultIndex);
       syncAndRender();
@@ -2246,6 +2287,10 @@
 
       els.rouletteCountPlus.addEventListener("click", () => setRouletteCount(state.roulette.count + 1));
       els.rouletteCountMinus.addEventListener("click", () => setRouletteCount(state.roulette.count - 1));
+      els.rouletteSpinDuration.addEventListener("change", () => {
+        state.roulette.spinDuration = normalizeRouletteSpinDuration(els.rouletteSpinDuration.value);
+        syncAndRender();
+      });
       els.rouletteConfirmCount.addEventListener("click", confirmRouletteCount);
       els.rouletteConfirmOptions.addEventListener("click", confirmRouletteOptions);
       els.rouletteSpinButton.addEventListener("click", spinRoulette);
@@ -2256,7 +2301,8 @@
         if (!event.target.matches("[data-roulette-option-index]")) return;
         const index = Number(event.target.dataset.rouletteOptionIndex);
         if (!state.roulette.options[index]) return;
-        state.roulette.options[index].label = event.target.value.slice(0, 40);
+        state.roulette.options[index].label = sanitizeRouletteLabel(event.target.value, `선택지 ${index + 1}`);
+        event.target.value = state.roulette.options[index].label;
       });
 
       els.rouletteOptionInputs.addEventListener("change", () => {

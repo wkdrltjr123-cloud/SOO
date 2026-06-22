@@ -11,6 +11,8 @@ const controllerPath = path.join(rootDir, "obs_timer_controller.html");
 const roomsPath = path.join(rootDir, "obs_timer_rooms.json");
 const fontsDir = path.join(rootDir, "fonts");
 const fontExtensions = new Set([".woff2", ".woff", ".ttf", ".otf"]);
+const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
+const defaultRouletteSpinDuration = 3000;
 
 const defaults = {
   duration: 0,
@@ -92,7 +94,7 @@ function createDefaultRoulette() {
     spinning: false,
     rotation: 0,
     spinStartedAt: 0,
-    spinDuration: 5200,
+    spinDuration: defaultRouletteSpinDuration,
     resultIndex: -1,
     history: []
   };
@@ -101,6 +103,14 @@ function createDefaultRoulette() {
 function sanitizeRouletteLabel(value, fallback) {
   const label = Array.from(String(value || "").trim()).slice(0, 7).join("");
   return label || fallback;
+}
+
+function normalizeRouletteSpinDuration(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return defaultRouletteSpinDuration;
+  return rouletteSpinDurations.reduce((best, current) => (
+    Math.abs(current - number) < Math.abs(best - number) ? current : best
+  ), rouletteSpinDurations[0]);
 }
 
 function normalizeRoulette(value) {
@@ -134,7 +144,7 @@ function normalizeRoulette(value) {
     spinning: Boolean(source.spinning),
     rotation: Number(source.rotation) || 0,
     spinStartedAt: Number(source.spinStartedAt) || 0,
-    spinDuration: clampNumber(source.spinDuration, 1800, 12000, defaultsRoulette.spinDuration),
+    spinDuration: normalizeRouletteSpinDuration(source.spinDuration),
     resultIndex: clampInt(source.resultIndex, -1, count - 1),
     history
   };
