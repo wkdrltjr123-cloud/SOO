@@ -186,7 +186,7 @@
       }
 
       const width = optionCount <= 2 ? 44 : optionCount <= 3 ? 42 : optionCount > 6 ? 34 : 36;
-      const radius = Math.min(34, Math.max(25, 48 - (width / 2)));
+      const radius = optionCount <= 2 ? 26 : optionCount <= 3 ? 28 : optionCount <= 6 ? 31 : optionCount <= 10 ? 32 : 34;
       const angle = optionCount <= 3 ? 0 : normalizeReadableAngle(visualCenter - 90);
       return { radius, width, angle };
     }
@@ -243,16 +243,16 @@
       ctx.clearRect(0, 0, cssSize, cssSize);
 
       roulette.options.forEach((option, index) => {
-        const span = (Math.max(1, Number(option.weight) || 1) / total) * Math.PI * 2;
-        const start = -Math.PI / 2 + cursor;
-        const end = start + span;
+        const spanDeg = (Math.max(1, Number(option.weight) || 1) / total) * 360;
+        const start = (cursor - 180) * Math.PI / 180;
+        const end = (cursor + spanDeg - 180) * Math.PI / 180;
         ctx.beginPath();
         ctx.moveTo(center, center);
         ctx.arc(center, center, radius, start, end, false);
         ctx.closePath();
         ctx.fillStyle = rouletteColors[index % rouletteColors.length];
         ctx.fill();
-        cursor += span;
+        cursor += spanDeg;
       });
 
       ctx.beginPath();

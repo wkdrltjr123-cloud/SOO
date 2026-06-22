@@ -1824,7 +1824,7 @@
       }
 
       const width = optionCount <= 2 ? 44 : optionCount <= 3 ? 42 : optionCount > 6 ? 34 : 36;
-      const radius = Math.min(34, Math.max(25, 48 - (width / 2)));
+      const radius = optionCount <= 2 ? 26 : optionCount <= 3 ? 28 : optionCount <= 6 ? 31 : optionCount <= 10 ? 32 : 34;
       const angle = optionCount <= 3 ? 0 : normalizeReadableAngle(visualCenter - 90);
 
       return { radius, width, angle };
