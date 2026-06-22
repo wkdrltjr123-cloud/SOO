@@ -131,6 +131,7 @@ function normalizeRoulette(value) {
   const step = ["count", "options", "spin"].includes(source.step) ? source.step : defaultsRoulette.step;
   const history = Array.isArray(source.history) ? source.history.slice(0, 30).map((item) => ({
     label: sanitizeRouletteLabel(item?.label, "결과"),
+    probability: Number.isFinite(Number(item?.probability)) ? clampNumber(item.probability, 0, 100, 0) : null,
     at: Number(item?.at) || Date.now()
   })) : [];
 
