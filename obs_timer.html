@@ -138,20 +138,26 @@
     .roulette-label {
       position: absolute;
       z-index: 1;
-      width: 35%;
+      display: flex;
+      width: var(--roulette-label-width, 34%);
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      padding: 0 3px;
       overflow: hidden;
       color: #fff;
       font-size: clamp(10px, 2.5vw, 16px);
       font-weight: 900;
       line-height: 1.12;
       letter-spacing: 0;
-      overflow-wrap: anywhere;
       paint-order: stroke fill;
       pointer-events: none;
       text-align: center;
       text-overflow: ellipsis;
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
-      transform: translate(-50%, -50%);
+      transform: translate(-50%, -50%) rotate(var(--roulette-label-angle, 0deg));
+      transform-origin: center;
+      white-space: nowrap;
       -webkit-text-stroke: 3px rgba(0, 0, 0, 0.78);
     }
 
@@ -1801,22 +1807,40 @@
       renderRouletteLabels(wheel);
     }
 
+    function getRouletteLabelLayout(optionCount, center) {
+      if (optionCount <= 1) {
+        return { radius: 0, width: 70, angle: 0 };
+      }
+
+      const width = optionCount > 12 ? 22 : optionCount > 9 ? 25 : optionCount > 6 ? 29 : optionCount > 3 ? 34 : 38;
+      const radius = Math.min(34, Math.max(25, 48 - (width / 2)));
+      let angle = ((((center - 90) % 360) + 540) % 360) - 180;
+
+      if (angle > 90) angle -= 180;
+      if (angle < -90) angle += 180;
+
+      return { radius, width, angle };
+    }
+
     function renderRouletteLabels(wheel) {
       if (!wheel) return;
       const total = getRouletteTotalWeight();
-      const labelRadius = state.roulette.options.length > 10 ? 28 : state.roulette.options.length > 6 ? 30 : 31;
+      const optionCount = state.roulette.options.length;
       let cursor = 0;
       const fragment = document.createDocumentFragment();
 
       state.roulette.options.forEach((option, index) => {
         const span = (Math.max(1, Number(option.weight) || 1) / total) * 360;
         const center = cursor + span / 2;
+        const layout = getRouletteLabelLayout(optionCount, center);
         const radians = center * Math.PI / 180;
         const label = document.createElement("span");
         label.className = "roulette-label";
         label.textContent = option.label;
-        label.style.left = `${50 + Math.sin(radians) * labelRadius}%`;
-        label.style.top = `${50 - Math.cos(radians) * labelRadius}%`;
+        label.style.left = `${50 + Math.sin(radians) * layout.radius}%`;
+        label.style.top = `${50 - Math.cos(radians) * layout.radius}%`;
+        label.style.setProperty("--roulette-label-angle", `${layout.angle}deg`);
+        label.style.setProperty("--roulette-label-width", `${layout.width}%`);
         label.style.color = rouletteColors[index % rouletteColors.length] === "#fef08a" ? "#111827" : "#ffffff";
         fragment.appendChild(label);
         cursor += span;
