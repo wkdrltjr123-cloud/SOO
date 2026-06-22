@@ -99,7 +99,7 @@ function createDefaultRoulette() {
 }
 
 function sanitizeRouletteLabel(value, fallback) {
-  const label = String(value || "").trim().slice(0, 40);
+  const label = Array.from(String(value || "").trim()).slice(0, 7).join("");
   return label || fallback;
 }
 

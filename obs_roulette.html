@@ -5,12 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OBS Roulette</title>
   <style>
-    :root {
-      --roulette-bg: conic-gradient(from -90deg, #86ef6f 0 50%, #ece86a 50% 100%);
-      --roulette-rotation: 0deg;
-      --roulette-spin-duration: 0ms;
-    }
-
     * {
       box-sizing: border-box;
     }
@@ -71,53 +65,14 @@
     }
 
     .roulette-wheel {
-      position: relative;
+      display: block;
       width: 100%;
-      aspect-ratio: 1;
+      height: 100%;
       border: max(2px, 0.45vmin) solid rgba(0, 0, 0, 0.78);
       border-radius: 50%;
-      background: var(--roulette-bg);
       box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
-      overflow: hidden;
-      transform: rotate(var(--roulette-rotation));
-      transition: transform var(--roulette-spin-duration) cubic-bezier(0.12, 0.72, 0.08, 1);
-    }
-
-    .roulette-label-layer {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      border-radius: 50%;
-      overflow: hidden;
-      pointer-events: none;
-      transform: rotate(var(--roulette-rotation));
-      transition: transform var(--roulette-spin-duration) cubic-bezier(0.12, 0.72, 0.08, 1);
-    }
-
-    .roulette-label {
-      position: absolute;
-      z-index: 2;
-      display: flex;
-      width: var(--roulette-label-width, 34%);
-      align-items: center;
-      justify-content: center;
-      box-sizing: border-box;
-      padding: 0 0.35vmin;
-      overflow: hidden;
-      color: #fff;
-      font-size: clamp(12px, 3.2vmin, 30px);
-      font-weight: 900;
-      line-height: 1.12;
-      letter-spacing: 0;
-      paint-order: stroke fill;
-      pointer-events: none;
-      text-align: center;
-      text-overflow: ellipsis;
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
-      transform: translate(-50%, -50%) rotate(var(--roulette-label-angle, 0deg));
-      transform-origin: center;
-      white-space: nowrap;
-      -webkit-text-stroke: max(2px, 0.35vmin) rgba(0, 0, 0, 0.78);
+      transform: rotate(0deg);
+      transition: transform 0ms cubic-bezier(0.12, 0.72, 0.08, 1);
     }
 
     .roulette-winner {
@@ -147,8 +102,7 @@
   <main class="roulette-stage" aria-label="룰렛 방송 화면">
     <div class="roulette-wrap">
       <div class="roulette-pointer" aria-hidden="true"></div>
-      <div id="rouletteWheel" class="roulette-wheel"></div>
-      <div id="rouletteLabels" class="roulette-label-layer" aria-hidden="true"></div>
+      <canvas id="rouletteWheel" class="roulette-wheel"></canvas>
     </div>
     <div id="rouletteWinner" class="roulette-winner" aria-live="polite"></div>
   </main>
@@ -165,10 +119,11 @@
 
     const wheel = document.getElementById("rouletteWheel");
     const winner = document.getElementById("rouletteWinner");
-    const labelLayer = document.getElementById("rouletteLabels");
+    const ctx = wheel.getContext("2d");
     let lastPayload = "";
     let lastRotation = 0;
     let lastSpinStartedAt = 0;
+    let lastRoulette = null;
 
     function sanitizeRoom(value) {
       return String(value || "")
@@ -183,6 +138,11 @@
       return Math.min(max, Math.max(min, number));
     }
 
+    function sanitizeRouletteLabel(value, fallback) {
+      const label = Array.from(String(value || "").trim()).slice(0, 7).join("");
+      return label || fallback;
+    }
+
     function normalizeRoulette(value) {
       const source = value && typeof value === "object" ? value : {};
       const count = clampNumber(source.count, 1, 15, 2);
@@ -192,7 +152,7 @@
       for (let index = 0; index < count; index += 1) {
         const option = rawOptions[index] && typeof rawOptions[index] === "object" ? rawOptions[index] : {};
         options.push({
-          label: String(option.label || `선택지 ${index + 1}`).slice(0, 40),
+          label: sanitizeRouletteLabel(option.label, `선택지 ${index + 1}`),
           weight: clampNumber(option.weight, 1, 999, 1)
         });
       }
@@ -213,26 +173,6 @@
       return roulette.options.reduce((sum, option) => sum + Math.max(1, Number(option.weight) || 1), 0);
     }
 
-    function getRouletteBackground(roulette) {
-      const total = getTotalWeight(roulette);
-      let cursor = 0;
-      const stops = roulette.options.map((option, index) => {
-        const start = cursor;
-        cursor += (Math.max(1, Number(option.weight) || 1) / total) * 100;
-        return `${rouletteColors[index % rouletteColors.length]} ${start.toFixed(4)}% ${cursor.toFixed(4)}%`;
-      });
-      return `conic-gradient(from -90deg, ${stops.join(", ")})`;
-    }
-
-    function replaceLayerChildren(node, fragment) {
-      node.textContent = "";
-      node.appendChild(fragment);
-    }
-
-    function getRouletteVisualCenter(center) {
-      return center - 90;
-    }
-
     function normalizeReadableAngle(angle) {
       let next = ((((angle % 360) + 540) % 360) - 180);
       if (next > 90) next -= 180;
@@ -242,41 +182,103 @@
 
     function getRouletteLabelLayout(optionCount, visualCenter) {
       if (optionCount <= 1) {
-        return { radius: 0, width: 70, angle: 0 };
+        return { radius: 0, width: 72, angle: 0 };
       }
 
-      const width = optionCount <= 2 ? 44 : optionCount <= 3 ? 42 : optionCount > 12 ? 22 : optionCount > 9 ? 25 : optionCount > 6 ? 29 : 34;
+      const width = optionCount <= 2 ? 44 : optionCount <= 3 ? 42 : optionCount > 6 ? 34 : 36;
       const radius = Math.min(34, Math.max(25, 48 - (width / 2)));
       const angle = optionCount <= 3 ? 0 : normalizeReadableAngle(visualCenter - 90);
-
       return { radius, width, angle };
     }
 
-    function renderRouletteLabels(roulette) {
+    function fitTextSize(text, maxWidth, baseSize, minSize) {
+      let size = baseSize;
+      while (size > minSize) {
+        ctx.font = `900 ${size}px "Segoe UI", "Pretendard", "Noto Sans KR", Arial, sans-serif`;
+        if (ctx.measureText(text).width <= maxWidth) break;
+        size -= 0.5;
+      }
+      return size;
+    }
+
+    function drawLabel(text, x, y, angle, maxWidth, baseSize, minSize, strokeWidth) {
+      const fontSize = fitTextSize(text, maxWidth, baseSize, minSize);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle * Math.PI / 180);
+      ctx.font = `900 ${fontSize}px "Segoe UI", "Pretendard", "Noto Sans KR", Arial, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineJoin = "round";
+      ctx.miterLimit = 2;
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.86)";
+      ctx.lineWidth = strokeWidth;
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeText(text, 0, 0, maxWidth);
+      ctx.fillText(text, 0, 0, maxWidth);
+      ctx.restore();
+    }
+
+    function resizeCanvas(cssSize) {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const pixelSize = Math.max(1, Math.round(cssSize * dpr));
+      if (wheel.width !== pixelSize || wheel.height !== pixelSize) {
+        wheel.width = pixelSize;
+        wheel.height = pixelSize;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function drawRoulette(roulette) {
+      const rect = wheel.getBoundingClientRect();
+      const cssSize = Math.max(1, Math.round(rect.width || rect.height || 320));
+      resizeCanvas(cssSize);
+
+      const center = cssSize / 2;
+      const radius = Math.max(1, (cssSize / 2) - Math.max(2, cssSize * 0.006));
       const total = getTotalWeight(roulette);
       const optionCount = roulette.options.length;
       let cursor = 0;
-      const fragment = document.createDocumentFragment();
+
+      ctx.clearRect(0, 0, cssSize, cssSize);
 
       roulette.options.forEach((option, index) => {
-        const span = (Math.max(1, Number(option.weight) || 1) / total) * 360;
-        const center = cursor + span / 2;
-        const visualCenter = getRouletteVisualCenter(center);
-        const layout = getRouletteLabelLayout(optionCount, visualCenter);
-        const radians = visualCenter * Math.PI / 180;
-        const label = document.createElement("span");
-        label.className = "roulette-label";
-        label.textContent = option.label;
-        label.style.left = `${50 + Math.sin(radians) * layout.radius}%`;
-        label.style.top = `${50 - Math.cos(radians) * layout.radius}%`;
-        label.style.setProperty("--roulette-label-angle", `${layout.angle}deg`);
-        label.style.setProperty("--roulette-label-width", `${layout.width}%`);
-        label.style.color = "#ffffff";
-        fragment.appendChild(label);
+        const span = (Math.max(1, Number(option.weight) || 1) / total) * Math.PI * 2;
+        const start = -Math.PI / 2 + cursor;
+        const end = start + span;
+        ctx.beginPath();
+        ctx.moveTo(center, center);
+        ctx.arc(center, center, radius, start, end, false);
+        ctx.closePath();
+        ctx.fillStyle = rouletteColors[index % rouletteColors.length];
+        ctx.fill();
         cursor += span;
       });
 
-      replaceLayerChildren(labelLayer, fragment);
+      ctx.beginPath();
+      ctx.arc(center, center, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.78)";
+      ctx.lineWidth = Math.max(2, cssSize * 0.009);
+      ctx.stroke();
+
+      cursor = 0;
+      roulette.options.forEach((option, index) => {
+        const spanDeg = (Math.max(1, Number(option.weight) || 1) / total) * 360;
+        const centerDeg = cursor + spanDeg / 2;
+        const visualCenter = centerDeg - 90;
+        const layout = getRouletteLabelLayout(optionCount, visualCenter);
+        const radians = visualCenter * Math.PI / 180;
+        const labelRadius = radius * (layout.radius / 50);
+        const x = center + Math.sin(radians) * labelRadius;
+        const y = center - Math.cos(radians) * labelRadius;
+        const text = sanitizeRouletteLabel(option.label, `선택지 ${index + 1}`);
+        const maxWidth = cssSize * (layout.width / 100);
+        const baseSize = cssSize * (optionCount > 12 ? 0.043 : optionCount > 9 ? 0.048 : optionCount > 6 ? 0.052 : 0.058);
+        const minSize = Math.max(7, cssSize * 0.026);
+        const strokeWidth = Math.max(3, cssSize * 0.012);
+        drawLabel(text, x, y, layout.angle, maxWidth, baseSize, minSize, strokeWidth);
+        cursor += spanDeg;
+      });
     }
 
     function getRemainingDuration(roulette) {
@@ -285,44 +287,33 @@
     }
 
     function applyRoulette(roulette) {
+      lastRoulette = roulette;
       const live = roulette.visible || roulette.spinning;
       document.body.classList.toggle("roulette-live", live);
       document.body.classList.toggle("has-result", live && !roulette.spinning && roulette.resultIndex >= 0);
-      document.documentElement.style.setProperty("--roulette-bg", getRouletteBackground(roulette));
-      document.documentElement.style.setProperty("--roulette-rotation", `${roulette.rotation}deg`);
-      document.documentElement.style.setProperty("--roulette-spin-duration", `${getRemainingDuration(roulette)}ms`);
-      renderRouletteLabels(roulette);
+      drawRoulette(roulette);
 
       const result = roulette.resultIndex >= 0 ? roulette.options[roulette.resultIndex]?.label : "";
       winner.textContent = live && !roulette.spinning && result ? `🎉${result}🎉` : "";
 
       if (!live) {
         wheel.style.transition = "none";
-        labelLayer.style.transition = "none";
         lastRotation = roulette.rotation;
         wheel.style.transform = `rotate(${lastRotation}deg)`;
-        labelLayer.style.transform = `rotate(${lastRotation}deg)`;
         return;
       }
 
       const remaining = getRemainingDuration(roulette);
       if (roulette.spinning && roulette.spinStartedAt !== lastSpinStartedAt && remaining > 0) {
         wheel.style.transition = "none";
-        labelLayer.style.transition = "none";
         wheel.style.transform = `rotate(${lastRotation}deg)`;
-        labelLayer.style.transform = `rotate(${lastRotation}deg)`;
         wheel.offsetHeight;
-        labelLayer.offsetHeight;
         wheel.style.transition = `transform ${remaining}ms cubic-bezier(0.12, 0.72, 0.08, 1)`;
-        labelLayer.style.transition = `transform ${remaining}ms cubic-bezier(0.12, 0.72, 0.08, 1)`;
         wheel.style.transform = `rotate(${roulette.rotation}deg)`;
-        labelLayer.style.transform = `rotate(${roulette.rotation}deg)`;
         lastSpinStartedAt = roulette.spinStartedAt;
       } else {
         wheel.style.transition = "none";
-        labelLayer.style.transition = "none";
         wheel.style.transform = `rotate(${roulette.rotation}deg)`;
-        labelLayer.style.transform = `rotate(${roulette.rotation}deg)`;
       }
 
       lastRotation = roulette.rotation;
@@ -340,6 +331,16 @@
       } catch {
         // The server may still be waking up.
       }
+    }
+
+    if ("ResizeObserver" in window) {
+      new ResizeObserver(() => {
+        if (lastRoulette) drawRoulette(lastRoulette);
+      }).observe(wheel);
+    } else {
+      window.addEventListener("resize", () => {
+        if (lastRoulette) drawRoulette(lastRoulette);
+      });
     }
 
     fetchState();

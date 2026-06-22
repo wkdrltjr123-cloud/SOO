@@ -1336,7 +1336,7 @@
     }
 
     function sanitizeRouletteLabel(value, fallback) {
-      const label = String(value || "").trim().slice(0, 40);
+      const label = Array.from(String(value || "").trim()).slice(0, 7).join("");
       return label || fallback;
     }
 
@@ -1823,11 +1823,18 @@
         return { radius: 0, width: 70, angle: 0 };
       }
 
-      const width = optionCount <= 2 ? 44 : optionCount <= 3 ? 42 : optionCount > 12 ? 22 : optionCount > 9 ? 25 : optionCount > 6 ? 29 : 34;
+      const width = optionCount <= 2 ? 44 : optionCount <= 3 ? 42 : optionCount > 6 ? 34 : 36;
       const radius = Math.min(34, Math.max(25, 48 - (width / 2)));
       const angle = optionCount <= 3 ? 0 : normalizeReadableAngle(visualCenter - 90);
 
       return { radius, width, angle };
+    }
+
+    function getRouletteLabelFontSize(optionCount, text) {
+      const length = Math.max(1, Array.from(String(text || "")).length);
+      const base = optionCount > 12 ? 13 : optionCount > 9 ? 14 : optionCount > 6 ? 15 : 16;
+      const penalty = optionCount > 12 ? 1.15 : optionCount > 9 ? 1 : 0.8;
+      return Math.max(optionCount > 12 ? 8 : 10, base - Math.max(0, length - 4) * penalty);
     }
 
     function renderRouletteLabels(wheel) {
@@ -1844,12 +1851,14 @@
         const layout = getRouletteLabelLayout(optionCount, visualCenter);
         const radians = visualCenter * Math.PI / 180;
         const label = document.createElement("span");
+        const labelText = sanitizeRouletteLabel(option.label, `선택지 ${index + 1}`);
         label.className = "roulette-label";
-        label.textContent = option.label;
+        label.textContent = labelText;
         label.style.left = `${50 + Math.sin(radians) * layout.radius}%`;
         label.style.top = `${50 - Math.cos(radians) * layout.radius}%`;
         label.style.setProperty("--roulette-label-angle", `${layout.angle}deg`);
         label.style.setProperty("--roulette-label-width", `${layout.width}%`);
+        label.style.fontSize = `${getRouletteLabelFontSize(optionCount, labelText)}px`;
         label.style.color = "#ffffff";
         fragment.appendChild(label);
         cursor += span;
@@ -1874,7 +1883,7 @@
         input.id = `rouletteOption${index}`;
         input.type = "text";
         input.value = option.label;
-        input.maxLength = 40;
+        input.maxLength = 7;
         input.dataset.rouletteOptionIndex = String(index);
 
         row.append(label, input);
