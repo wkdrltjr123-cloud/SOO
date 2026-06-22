@@ -780,12 +780,16 @@
 
     .roulette-option-row {
       display: grid;
-      grid-template-columns: 42px minmax(0, 1fr);
+      grid-template-columns: 42px minmax(0, 1fr) 96px;
       gap: 8px;
       align-items: center;
     }
 
     .roulette-option-row label {
+      text-align: center;
+    }
+
+    .roulette-probability-input {
       text-align: center;
     }
 
@@ -1362,8 +1366,8 @@
         step: "count",
         count: 2,
         options: [
-          { label: "선택지 1", weight: 1 },
-          { label: "선택지 2", weight: 1 }
+          { label: "선택지 1", weight: 1, manualProbability: null },
+          { label: "선택지 2", weight: 1, manualProbability: null }
         ],
         visible: false,
         spinning: false,
@@ -1380,20 +1384,86 @@
       return label || fallback;
     }
 
+    function normalizeManualProbability(value) {
+      if (value === "" || value === null || value === undefined) return null;
+      const number = Number(value);
+      if (!Number.isFinite(number)) return null;
+      return clampNumber(number, 0, 100, 0);
+    }
+
+    function getOptionWeight(option) {
+      const weight = Number(option?.weight);
+      return Number.isFinite(weight) && weight > 0 ? weight : 0;
+    }
+
+    function applyRouletteProbabilityWeights(options) {
+      if (!options.length) return;
+
+      const manualOptions = options.filter((option) => option.manualProbability !== null);
+      const autoOptions = options.filter((option) => option.manualProbability === null);
+
+      if (!manualOptions.length) {
+        options.forEach((option) => {
+          option.weight = 1;
+        });
+        return;
+      }
+
+      const manualSum = manualOptions.reduce((sum, option) => sum + Math.max(0, Number(option.manualProbability) || 0), 0);
+
+      if (manualSum <= 0) {
+        options.forEach((option) => {
+          option.weight = option.manualProbability === null ? 1 : 0;
+        });
+      } else if (manualSum >= 100 || !autoOptions.length) {
+        options.forEach((option) => {
+          option.weight = option.manualProbability === null ? 0 : (Math.max(0, Number(option.manualProbability) || 0) / manualSum) * 100;
+        });
+      } else {
+        const autoShare = (100 - manualSum) / autoOptions.length;
+        options.forEach((option) => {
+          option.weight = option.manualProbability === null ? autoShare : Math.max(0, Number(option.manualProbability) || 0);
+        });
+      }
+
+      if (options.reduce((sum, option) => sum + getOptionWeight(option), 0) <= 0) {
+        options.forEach((option) => {
+          option.weight = 1;
+        });
+      }
+    }
+
     function normalizeRoulette(value) {
       const defaultsRoulette = createDefaultRoulette();
       const source = value && typeof value === "object" ? value : {};
       const count = clampInt(source.count, 1, 15);
       const rawOptions = Array.isArray(source.options) ? source.options : [];
       const options = [];
+      const legacyWeightTotal = rawOptions.slice(0, count).reduce((sum, option) => {
+        const weight = option && typeof option === "object" ? Number(option.weight) : 1;
+        return sum + (Number.isFinite(weight) && weight > 0 ? weight : 0);
+      }, 0);
+      const hasManualProbability = rawOptions.slice(0, count).some((option) => (
+        option && typeof option === "object" && option.manualProbability !== undefined && option.manualProbability !== null && option.manualProbability !== ""
+      ));
+      const hasLegacyCustomWeight = !hasManualProbability && rawOptions.slice(0, count).some((option) => {
+        const weight = option && typeof option === "object" ? Number(option.weight) : 1;
+        return Number.isFinite(weight) && Math.abs(weight - 1) > 0.0001;
+      });
 
       for (let index = 0; index < count; index += 1) {
         const option = rawOptions[index] && typeof rawOptions[index] === "object" ? rawOptions[index] : {};
+        const legacyWeight = Number(option.weight);
+        const manualProbability = hasLegacyCustomWeight && legacyWeightTotal > 0
+          ? ((Number.isFinite(legacyWeight) && legacyWeight > 0 ? legacyWeight : 0) / legacyWeightTotal) * 100
+          : normalizeManualProbability(option.manualProbability);
         options.push({
           label: sanitizeRouletteLabel(option.label, `선택지 ${index + 1}`),
-          weight: clampNumber(option.weight, 1, 999, 1)
+          weight: 1,
+          manualProbability
         });
       }
+      applyRouletteProbabilityWeights(options);
 
       const step = ["count", "options", "spin"].includes(source.step) ? source.step : defaultsRoulette.step;
       const history = Array.isArray(source.history) ? source.history.slice(0, 30).map((item) => ({
@@ -1815,7 +1885,7 @@
     }
 
     function getRouletteTotalWeight() {
-      return state.roulette.options.reduce((sum, option) => sum + Math.max(1, Number(option.weight) || 1), 0);
+      return state.roulette.options.reduce((sum, option) => sum + getOptionWeight(option), 0);
     }
 
     function getRouletteBackground() {
@@ -1823,7 +1893,7 @@
       let cursor = 0;
       const stops = state.roulette.options.map((option, index) => {
         const start = cursor;
-        cursor += (Math.max(1, Number(option.weight) || 1) / total) * 100;
+        cursor += (getOptionWeight(option) / total) * 100;
         return `${rouletteColors[index % rouletteColors.length]} ${start.toFixed(4)}% ${cursor.toFixed(4)}%`;
       });
       return `conic-gradient(from -90deg, ${stops.join(", ")})`;
@@ -1833,7 +1903,7 @@
       const total = getRouletteTotalWeight();
       let cursor = 0;
       for (let i = 0; i < state.roulette.options.length; i += 1) {
-        const span = (Math.max(1, Number(state.roulette.options[i].weight) || 1) / total) * 360;
+        const span = (getOptionWeight(state.roulette.options[i]) / total) * 360;
         if (i === index) return cursor + span / 2;
         cursor += span;
       }
@@ -1886,7 +1956,7 @@
       const fragment = document.createDocumentFragment();
 
       state.roulette.options.forEach((option, index) => {
-        const span = (Math.max(1, Number(option.weight) || 1) / total) * 360;
+        const span = (getOptionWeight(option) / total) * 360;
         const center = cursor + span / 2;
         const visualCenter = getRouletteVisualCenter(center);
         const layout = getRouletteLabelLayout(optionCount, visualCenter);
@@ -1927,7 +1997,20 @@
         input.maxLength = 7;
         input.dataset.rouletteOptionIndex = String(index);
 
-        row.append(label, input);
+        const probabilityInput = document.createElement("input");
+        probabilityInput.id = `rouletteProbability${index}`;
+        probabilityInput.className = "roulette-probability-input";
+        probabilityInput.type = "number";
+        probabilityInput.min = "0";
+        probabilityInput.max = "100";
+        probabilityInput.step = "0.1";
+        probabilityInput.inputMode = "decimal";
+        probabilityInput.placeholder = `자동 ${formatRouletteProbability(100 / state.roulette.options.length)}`;
+        probabilityInput.value = option.manualProbability === null ? "" : formatProbabilityInput(option.manualProbability);
+        probabilityInput.dataset.rouletteProbabilityIndex = String(index);
+        probabilityInput.ariaLabel = `${option.label} 수동 확률`;
+
+        row.append(label, input, probabilityInput);
         fragment.appendChild(row);
       });
       els.rouletteOptionInputs.replaceChildren(fragment);
@@ -1946,12 +2029,13 @@
 
         const input = document.createElement("input");
         input.type = "number";
-        input.min = "1";
-        input.max = "999";
-        input.step = "1";
-        input.value = option.weight;
-        input.inputMode = "numeric";
-        input.dataset.rouletteWeightIndex = String(index);
+        input.min = "0";
+        input.max = "100";
+        input.step = "0.1";
+        input.value = option.manualProbability === null ? "" : formatProbabilityInput(option.manualProbability);
+        input.placeholder = `자동 ${formatRouletteProbability((getOptionWeight(option) / getRouletteTotalWeight()) * 100)}`;
+        input.inputMode = "decimal";
+        input.dataset.rouletteProbabilityIndex = String(index);
         input.ariaLabel = `${option.label} 확률 가중치`;
 
         row.append(label, input);
@@ -1965,6 +2049,13 @@
       if (!Number.isFinite(number)) return "";
       const rounded = Math.round(number * 10) / 10;
       return Number.isInteger(rounded) ? `${rounded}%` : `${rounded.toFixed(1)}%`;
+    }
+
+    function formatProbabilityInput(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "";
+      const rounded = Math.round(number * 10) / 10;
+      return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
     }
 
     function renderRouletteHistory() {
@@ -2168,10 +2259,11 @@
       const nextCount = clampInt(count, 1, 15);
       const options = [...state.roulette.options];
       while (options.length < nextCount) {
-        options.push({ label: `선택지 ${options.length + 1}`, weight: 1 });
+        options.push({ label: `선택지 ${options.length + 1}`, weight: 1, manualProbability: null });
       }
       state.roulette.count = nextCount;
       state.roulette.options = options.slice(0, nextCount);
+      applyRouletteProbabilityWeights(state.roulette.options);
       state.roulette.resultIndex = -1;
       state.roulette.visible = false;
       state.roulette.spinning = false;
@@ -2192,6 +2284,12 @@
         if (!state.roulette.options[index]) return;
         state.roulette.options[index].label = sanitizeRouletteLabel(input.value, `선택지 ${index + 1}`);
       });
+      els.rouletteOptionInputs.querySelectorAll("[data-roulette-probability-index]").forEach((input) => {
+        const index = Number(input.dataset.rouletteProbabilityIndex);
+        if (!state.roulette.options[index]) return;
+        state.roulette.options[index].manualProbability = normalizeManualProbability(input.value);
+      });
+      applyRouletteProbabilityWeights(state.roulette.options);
     }
 
     function confirmRouletteOptions() {
@@ -2203,10 +2301,11 @@
       syncAndRender();
     }
 
-    function updateRouletteWeight(input) {
-      const index = Number(input.dataset.rouletteWeightIndex);
+    function updateRouletteProbability(input) {
+      const index = Number(input.dataset.rouletteProbabilityIndex);
       if (!state.roulette.options[index]) return;
-      state.roulette.options[index].weight = clampNumber(input.value, 1, 999, 1);
+      state.roulette.options[index].manualProbability = normalizeManualProbability(input.value);
+      applyRouletteProbabilityWeights(state.roulette.options);
       state.roulette.resultIndex = -1;
       syncAndRender();
     }
@@ -2215,7 +2314,7 @@
       const total = getRouletteTotalWeight();
       let target = Math.random() * total;
       for (let index = 0; index < state.roulette.options.length; index += 1) {
-        target -= Math.max(1, Number(state.roulette.options[index].weight) || 1);
+        target -= getOptionWeight(state.roulette.options[index]);
         if (target <= 0) return index;
       }
       return state.roulette.options.length - 1;
@@ -2233,7 +2332,7 @@
       const option = state.roulette.options[resultIndex];
       if (!option) return;
       const total = getRouletteTotalWeight();
-      const probability = total > 0 ? (Math.max(1, Number(option.weight) || 1) / total) * 100 : 0;
+      const probability = total > 0 ? (getOptionWeight(option) / total) * 100 : 0;
       state.roulette.history = [
         { label: option.label, probability, at: Date.now() },
         ...state.roulette.history
@@ -2309,11 +2408,20 @@
       els.rouletteResetSetup.addEventListener("click", resetRouletteSetup);
 
       els.rouletteOptionInputs.addEventListener("input", (event) => {
-        if (!event.target.matches("[data-roulette-option-index]")) return;
-        const index = Number(event.target.dataset.rouletteOptionIndex);
-        if (!state.roulette.options[index]) return;
-        state.roulette.options[index].label = sanitizeRouletteLabel(event.target.value, `선택지 ${index + 1}`);
-        event.target.value = state.roulette.options[index].label;
+        if (event.target.matches("[data-roulette-option-index]")) {
+          const index = Number(event.target.dataset.rouletteOptionIndex);
+          if (!state.roulette.options[index]) return;
+          state.roulette.options[index].label = sanitizeRouletteLabel(event.target.value, `선택지 ${index + 1}`);
+          event.target.value = state.roulette.options[index].label;
+          return;
+        }
+        if (event.target.matches("[data-roulette-probability-index]")) {
+          const index = Number(event.target.dataset.rouletteProbabilityIndex);
+          if (!state.roulette.options[index]) return;
+          state.roulette.options[index].manualProbability = normalizeManualProbability(event.target.value);
+          applyRouletteProbabilityWeights(state.roulette.options);
+          state.roulette.resultIndex = -1;
+        }
       });
 
       els.rouletteOptionInputs.addEventListener("change", () => {
@@ -2322,8 +2430,8 @@
       });
 
       els.rouletteProbabilityList.addEventListener("input", (event) => {
-        if (event.target.matches("[data-roulette-weight-index]")) {
-          updateRouletteWeight(event.target);
+        if (event.target.matches("[data-roulette-probability-index]")) {
+          updateRouletteProbability(event.target);
         }
       });
 

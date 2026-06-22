@@ -87,8 +87,8 @@ function createDefaultRoulette() {
     step: "count",
     count: 2,
     options: [
-      { label: "선택지 1", weight: 1 },
-      { label: "선택지 2", weight: 1 }
+      { label: "선택지 1", weight: 1, manualProbability: null },
+      { label: "선택지 2", weight: 1, manualProbability: null }
     ],
     visible: false,
     spinning: false,
@@ -105,6 +105,55 @@ function sanitizeRouletteLabel(value, fallback) {
   return label || fallback;
 }
 
+function normalizeManualProbability(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return clampNumber(number, 0, 100, 0);
+}
+
+function getOptionWeight(option) {
+  const weight = Number(option?.weight);
+  return Number.isFinite(weight) && weight > 0 ? weight : 0;
+}
+
+function applyRouletteProbabilityWeights(options) {
+  if (!options.length) return;
+
+  const manualOptions = options.filter((option) => option.manualProbability !== null);
+  const autoOptions = options.filter((option) => option.manualProbability === null);
+
+  if (!manualOptions.length) {
+    options.forEach((option) => {
+      option.weight = 1;
+    });
+    return;
+  }
+
+  const manualSum = manualOptions.reduce((sum, option) => sum + Math.max(0, Number(option.manualProbability) || 0), 0);
+
+  if (manualSum <= 0) {
+    options.forEach((option) => {
+      option.weight = option.manualProbability === null ? 1 : 0;
+    });
+  } else if (manualSum >= 100 || !autoOptions.length) {
+    options.forEach((option) => {
+      option.weight = option.manualProbability === null ? 0 : (Math.max(0, Number(option.manualProbability) || 0) / manualSum) * 100;
+    });
+  } else {
+    const autoShare = (100 - manualSum) / autoOptions.length;
+    options.forEach((option) => {
+      option.weight = option.manualProbability === null ? autoShare : Math.max(0, Number(option.manualProbability) || 0);
+    });
+  }
+
+  if (options.reduce((sum, option) => sum + getOptionWeight(option), 0) <= 0) {
+    options.forEach((option) => {
+      option.weight = 1;
+    });
+  }
+}
+
 function normalizeRouletteSpinDuration(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return defaultRouletteSpinDuration;
@@ -119,14 +168,31 @@ function normalizeRoulette(value) {
   const count = clampInt(source.count, 1, 15);
   const rawOptions = Array.isArray(source.options) ? source.options : [];
   const options = [];
+  const legacyWeightTotal = rawOptions.slice(0, count).reduce((sum, option) => {
+    const weight = option && typeof option === "object" ? Number(option.weight) : 1;
+    return sum + (Number.isFinite(weight) && weight > 0 ? weight : 0);
+  }, 0);
+  const hasManualProbability = rawOptions.slice(0, count).some((option) => (
+    option && typeof option === "object" && option.manualProbability !== undefined && option.manualProbability !== null && option.manualProbability !== ""
+  ));
+  const hasLegacyCustomWeight = !hasManualProbability && rawOptions.slice(0, count).some((option) => {
+    const weight = option && typeof option === "object" ? Number(option.weight) : 1;
+    return Number.isFinite(weight) && Math.abs(weight - 1) > 0.0001;
+  });
 
   for (let index = 0; index < count; index += 1) {
     const option = rawOptions[index] && typeof rawOptions[index] === "object" ? rawOptions[index] : {};
+    const legacyWeight = Number(option.weight);
+    const manualProbability = hasLegacyCustomWeight && legacyWeightTotal > 0
+      ? ((Number.isFinite(legacyWeight) && legacyWeight > 0 ? legacyWeight : 0) / legacyWeightTotal) * 100
+      : normalizeManualProbability(option.manualProbability);
     options.push({
       label: sanitizeRouletteLabel(option.label, `선택지 ${index + 1}`),
-      weight: clampNumber(option.weight, 1, 999, 1)
+      weight: 1,
+      manualProbability
     });
   }
+  applyRouletteProbabilityWeights(options);
 
   const step = ["count", "options", "spin"].includes(source.step) ? source.step : defaultsRoulette.step;
   const history = Array.isArray(source.history) ? source.history.slice(0, 30).map((item) => ({
