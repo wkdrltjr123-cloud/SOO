@@ -211,17 +211,25 @@
       return `conic-gradient(from -90deg, ${stops.join(", ")})`;
     }
 
-    function getRouletteLabelLayout(optionCount, center) {
+    function getRouletteVisualCenter(center) {
+      return center - 90;
+    }
+
+    function normalizeReadableAngle(angle) {
+      let next = ((((angle % 360) + 540) % 360) - 180);
+      if (next > 90) next -= 180;
+      if (next < -90) next += 180;
+      return next;
+    }
+
+    function getRouletteLabelLayout(optionCount, visualCenter) {
       if (optionCount <= 1) {
         return { radius: 0, width: 70, angle: 0 };
       }
 
-      const width = optionCount > 12 ? 22 : optionCount > 9 ? 25 : optionCount > 6 ? 29 : optionCount > 3 ? 34 : 38;
+      const width = optionCount <= 2 ? 44 : optionCount <= 3 ? 42 : optionCount > 12 ? 22 : optionCount > 9 ? 25 : optionCount > 6 ? 29 : 34;
       const radius = Math.min(34, Math.max(25, 48 - (width / 2)));
-      let angle = ((((center - 90) % 360) + 540) % 360) - 180;
-
-      if (angle > 90) angle -= 180;
-      if (angle < -90) angle += 180;
+      const angle = optionCount <= 3 ? 0 : normalizeReadableAngle(visualCenter - 90);
 
       return { radius, width, angle };
     }
@@ -235,8 +243,9 @@
       roulette.options.forEach((option, index) => {
         const span = (Math.max(1, Number(option.weight) || 1) / total) * 360;
         const center = cursor + span / 2;
-        const layout = getRouletteLabelLayout(optionCount, center);
-        const radians = center * Math.PI / 180;
+        const visualCenter = getRouletteVisualCenter(center);
+        const layout = getRouletteLabelLayout(optionCount, visualCenter);
+        const radians = visualCenter * Math.PI / 180;
         const label = document.createElement("span");
         label.className = "roulette-label";
         label.textContent = option.label;
