@@ -83,9 +83,20 @@
       transition: transform var(--roulette-spin-duration) cubic-bezier(0.12, 0.72, 0.08, 1);
     }
 
+    .roulette-label-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      border-radius: 50%;
+      overflow: hidden;
+      pointer-events: none;
+      transform: rotate(var(--roulette-rotation));
+      transition: transform var(--roulette-spin-duration) cubic-bezier(0.12, 0.72, 0.08, 1);
+    }
+
     .roulette-label {
       position: absolute;
-      z-index: 1;
+      z-index: 2;
       display: flex;
       width: var(--roulette-label-width, 34%);
       align-items: center;
@@ -137,6 +148,7 @@
     <div class="roulette-wrap">
       <div class="roulette-pointer" aria-hidden="true"></div>
       <div id="rouletteWheel" class="roulette-wheel"></div>
+      <div id="rouletteLabels" class="roulette-label-layer" aria-hidden="true"></div>
     </div>
     <div id="rouletteWinner" class="roulette-winner" aria-live="polite"></div>
   </main>
@@ -153,6 +165,7 @@
 
     const wheel = document.getElementById("rouletteWheel");
     const winner = document.getElementById("rouletteWinner");
+    const labelLayer = document.getElementById("rouletteLabels");
     let lastPayload = "";
     let lastRotation = 0;
     let lastSpinStartedAt = 0;
@@ -211,6 +224,11 @@
       return `conic-gradient(from -90deg, ${stops.join(", ")})`;
     }
 
+    function replaceLayerChildren(node, fragment) {
+      node.textContent = "";
+      node.appendChild(fragment);
+    }
+
     function getRouletteVisualCenter(center) {
       return center - 90;
     }
@@ -253,12 +271,12 @@
         label.style.top = `${50 - Math.cos(radians) * layout.radius}%`;
         label.style.setProperty("--roulette-label-angle", `${layout.angle}deg`);
         label.style.setProperty("--roulette-label-width", `${layout.width}%`);
-        label.style.color = rouletteColors[index % rouletteColors.length] === "#fef08a" ? "#111827" : "#ffffff";
+        label.style.color = "#ffffff";
         fragment.appendChild(label);
         cursor += span;
       });
 
-      wheel.replaceChildren(fragment);
+      replaceLayerChildren(labelLayer, fragment);
     }
 
     function getRemainingDuration(roulette) {
@@ -280,22 +298,31 @@
 
       if (!live) {
         wheel.style.transition = "none";
+        labelLayer.style.transition = "none";
         lastRotation = roulette.rotation;
         wheel.style.transform = `rotate(${lastRotation}deg)`;
+        labelLayer.style.transform = `rotate(${lastRotation}deg)`;
         return;
       }
 
       const remaining = getRemainingDuration(roulette);
       if (roulette.spinning && roulette.spinStartedAt !== lastSpinStartedAt && remaining > 0) {
         wheel.style.transition = "none";
+        labelLayer.style.transition = "none";
         wheel.style.transform = `rotate(${lastRotation}deg)`;
+        labelLayer.style.transform = `rotate(${lastRotation}deg)`;
         wheel.offsetHeight;
+        labelLayer.offsetHeight;
         wheel.style.transition = `transform ${remaining}ms cubic-bezier(0.12, 0.72, 0.08, 1)`;
+        labelLayer.style.transition = `transform ${remaining}ms cubic-bezier(0.12, 0.72, 0.08, 1)`;
         wheel.style.transform = `rotate(${roulette.rotation}deg)`;
+        labelLayer.style.transform = `rotate(${roulette.rotation}deg)`;
         lastSpinStartedAt = roulette.spinStartedAt;
       } else {
         wheel.style.transition = "none";
+        labelLayer.style.transition = "none";
         wheel.style.transform = `rotate(${roulette.rotation}deg)`;
+        labelLayer.style.transform = `rotate(${roulette.rotation}deg)`;
       }
 
       lastRotation = roulette.rotation;

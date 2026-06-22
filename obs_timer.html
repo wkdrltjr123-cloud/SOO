@@ -1850,7 +1850,7 @@
         label.style.top = `${50 - Math.cos(radians) * layout.radius}%`;
         label.style.setProperty("--roulette-label-angle", `${layout.angle}deg`);
         label.style.setProperty("--roulette-label-width", `${layout.width}%`);
-        label.style.color = rouletteColors[index % rouletteColors.length] === "#fef08a" ? "#111827" : "#ffffff";
+        label.style.color = "#ffffff";
         fragment.appendChild(label);
         cursor += span;
       });
