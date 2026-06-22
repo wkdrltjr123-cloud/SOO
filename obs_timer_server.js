@@ -13,7 +13,7 @@ const fontsDir = path.join(rootDir, "fonts");
 const fontExtensions = new Set([".woff2", ".woff", ".ttf", ".otf"]);
 const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
 const defaultRouletteSpinDuration = 3000;
-const rouletteSpinSettleDelay = 650;
+const rouletteSpinSettleDelay = 900;
 
 const defaults = {
   duration: 0,

@@ -121,7 +121,8 @@
     const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
     const defaultRouletteSpinDuration = 3000;
     const statePollInterval = 100;
-    const minimumVisibleSpinDuration = 1200;
+    const minimumVisibleSpinDuration = 2200;
+    const visualSpinSettleDelay = 900;
 
     const wheel = document.getElementById("rouletteWheel");
     const winner = document.getElementById("rouletteWinner");
@@ -376,10 +377,10 @@
     }
 
     function getVisualSpinRevolutions(duration) {
-      if (duration <= 2000) return 3;
-      if (duration <= 3000) return 4;
-      if (duration <= 5000) return 5;
-      return 6;
+      if (duration <= 2000) return 2;
+      if (duration <= 3000) return 2.75;
+      if (duration <= 5000) return 4;
+      return 5;
     }
 
     function getVisualTargetRotation(fromRotation, targetRotation, duration) {
@@ -415,7 +416,7 @@
       localSpinEndsAt = 0;
 
       if (!lastRoulette) return;
-      lastRotation = lastRoulette.rotation;
+      lastRotation = displayRotation || lastRotation;
       setWheelRotation(lastRotation);
       setRouletteClasses(lastRoulette, false);
     }
@@ -487,7 +488,7 @@
 
       if (hasNewSpin) {
         const remaining = getRemainingDuration(roulette);
-        startLocalSpin(roulette, Math.max(remaining, minimumVisibleSpinDuration));
+        startLocalSpin(roulette, Math.max(remaining + visualSpinSettleDelay, minimumVisibleSpinDuration));
         return;
       }
 
