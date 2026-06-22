@@ -18,6 +18,9 @@
       --output-width: 320px;
       --output-height: 140px;
       --output-ratio: 320 / 140;
+      --roulette-bg: conic-gradient(from -90deg, #84ef6d 0 50%, #ece86a 50% 100%);
+      --roulette-rotation: 0deg;
+      --roulette-spin-duration: 0ms;
     }
 
     * {
@@ -93,6 +96,41 @@
       justify-content: center;
       text-align: center;
       user-select: none;
+    }
+
+    .roulette-display {
+      position: relative;
+      display: none;
+      width: 100%;
+      height: 100%;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+    }
+
+    .roulette-pointer {
+      position: absolute;
+      top: 4px;
+      left: 50%;
+      z-index: 2;
+      color: #fff;
+      font-size: clamp(18px, 7vmin, 34px);
+      line-height: 1;
+      text-shadow: 0 2px 5px rgba(0, 0, 0, 0.65);
+      transform: translateX(-50%);
+    }
+
+    .roulette-wheel {
+      width: min(82%, 82vh);
+      max-width: calc(var(--output-width) * 0.82);
+      max-height: calc(var(--output-height) * 0.82);
+      aspect-ratio: 1;
+      border: 2px solid rgba(0, 0, 0, 0.75);
+      border-radius: 50%;
+      background: var(--roulette-bg);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+      transform: rotate(var(--roulette-rotation));
+      transition: transform var(--roulette-spin-duration) cubic-bezier(0.12, 0.72, 0.08, 1);
     }
 
     .timer {
@@ -196,6 +234,9 @@
       justify-content: space-between;
       gap: 10px;
       margin-bottom: 8px;
+    }
+
+    #timerPanelHeader {
       cursor: pointer;
       user-select: none;
     }
@@ -597,6 +638,188 @@
       font-size: 12px;
     }
 
+    .roulette-panel {
+      margin-top: 12px;
+    }
+
+    .roulette-body {
+      display: grid;
+      gap: 10px;
+    }
+
+    .roulette-step-title {
+      margin: 6px 0 2px;
+      color: rgba(255, 255, 255, 0.95);
+      font-size: 18px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .roulette-count-control {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .roulette-count-control button {
+      width: 38px;
+      min-height: 36px;
+      background: rgba(0, 132, 255, 0.92);
+      font-size: 16px;
+    }
+
+    .roulette-count-value {
+      min-width: 38px;
+      padding: 9px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .roulette-subhint {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.74);
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .roulette-preview {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 250px;
+      padding: 18px 0;
+    }
+
+    .roulette-preview .roulette-pointer {
+      top: 4px;
+    }
+
+    .roulette-preview .roulette-wheel {
+      width: min(280px, 72vw);
+      max-width: none;
+      max-height: none;
+    }
+
+    .roulette-primary {
+      width: auto;
+      min-width: 150px;
+      justify-self: center;
+      padding: 12px 18px;
+      border-color: rgba(0, 132, 255, 0.95);
+      background: rgba(0, 132, 255, 0.95);
+      font-size: 18px;
+    }
+
+    .roulette-secondary {
+      width: auto;
+      justify-self: center;
+      min-width: 120px;
+    }
+
+    .roulette-options {
+      display: grid;
+      gap: 8px;
+    }
+
+    .roulette-option-row {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+    }
+
+    .roulette-option-row label {
+      text-align: center;
+    }
+
+    .roulette-spin-layout {
+      display: grid;
+      gap: 10px;
+      justify-items: center;
+    }
+
+    .roulette-result {
+      min-height: 24px;
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 16px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .probability-panel {
+      width: 100%;
+      max-width: 560px;
+      justify-self: center;
+    }
+
+    .probability-panel summary {
+      cursor: pointer;
+      color: rgba(255, 255, 255, 0.84);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .probability-list {
+      display: grid;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .probability-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 82px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .probability-row span {
+      overflow: hidden;
+      color: rgba(255, 255, 255, 0.84);
+      font-size: 13px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .roulette-history {
+      display: grid;
+      gap: 5px;
+      width: 100%;
+      max-width: 560px;
+      justify-self: center;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .roulette-history-title {
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .roulette-history-list {
+      display: grid;
+      gap: 4px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .roulette-history-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 12px;
+    }
+
     .nudge-grid {
       margin-top: 6px;
     }
@@ -788,13 +1011,66 @@
     </div>
 
     <div class="share-box">
-      <label for="displayUrl">OBS 방송 URL</label>
+      <label for="displayUrl">타이머 방송 URL</label>
       <input id="displayUrl" type="text" readonly>
+      <label for="rouletteUrl">룰렛 방송 URL</label>
+      <input id="rouletteUrl" type="text" readonly>
       <label for="controlUrl">조작 URL</label>
       <input id="controlUrl" type="text" readonly>
     </div>
 
     <p class="hint">OBS 소스에는 이 메뉴가 나오지 않습니다. 같은 방 코드의 방송 URL과 조작 URL이 서로 동기화됩니다.</p>
+    </div>
+  </section>
+
+  <section class="panel roulette-panel" aria-label="룰렛 조작 패널">
+    <div class="panel-header">
+      <h1 class="panel-title">OBS 룰렛</h1>
+      <div class="status-pill">컨트롤러</div>
+    </div>
+
+    <div id="rouletteBody" class="roulette-body">
+      <div id="rouletteStepCount">
+        <p class="roulette-step-title">1. 룰렛(원판) 선택지 개수를 정해주세요.</p>
+        <div class="roulette-count-control">
+          <button id="rouletteCountPlus" type="button">+</button>
+          <div id="rouletteCountValue" class="roulette-count-value">2</div>
+          <button id="rouletteCountMinus" type="button">-</button>
+        </div>
+        <p class="roulette-subhint">(1개~15개 설정가능)</p>
+        <div class="roulette-preview">
+          <div class="roulette-wheel" id="rouletteCountWheel"></div>
+        </div>
+        <button id="rouletteConfirmCount" class="roulette-primary" type="button">개수 설정 완료</button>
+      </div>
+
+      <div id="rouletteStepOptions" hidden>
+        <p class="roulette-step-title">2. 룰렛(원판) 선택지를 입력해주세요.</p>
+        <div id="rouletteOptionInputs" class="roulette-options"></div>
+        <button id="rouletteConfirmOptions" class="roulette-primary" type="button">선택지 입력 완료</button>
+      </div>
+
+      <div id="rouletteStepSpin" hidden>
+        <p class="roulette-step-title">3. 룰렛(원판)을 돌려주세요.</p>
+        <div class="roulette-spin-layout">
+          <div class="roulette-preview">
+            <div class="roulette-pointer">▼</div>
+            <div class="roulette-wheel" id="rouletteControlWheel"></div>
+          </div>
+          <div id="rouletteResult" class="roulette-result"></div>
+          <button id="rouletteSpinButton" class="roulette-primary" type="button">원판 돌리기</button>
+          <button id="rouletteHideBroadcast" class="roulette-secondary" type="button">방송에서 숨기기</button>
+          <button id="rouletteResetSetup" class="roulette-secondary" type="button">처음부터 설정</button>
+          <details class="probability-panel">
+            <summary>확률 조정</summary>
+            <div id="rouletteProbabilityList" class="probability-list"></div>
+          </details>
+          <div class="roulette-history">
+            <div class="roulette-history-title">기록지 (방송에는 표시되지 않음)</div>
+            <ul id="rouletteHistoryList" class="roulette-history-list"></ul>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -813,6 +1089,11 @@
     const timerPanelCollapseStorageKey = "obsTimerPanelCollapsed";
     const channelName = "obs-timer-control";
     const channel = !isServerMode && "BroadcastChannel" in window ? new BroadcastChannel(channelName) : null;
+    const rouletteColors = [
+      "#86ef6f", "#ece86a", "#56c7ff", "#ff8a3d", "#c084fc",
+      "#f472b6", "#34d399", "#facc15", "#60a5fa", "#fb7185",
+      "#a3e635", "#f97316", "#22d3ee", "#e879f9", "#fef08a"
+    ];
 
     const defaults = {
       duration: 0,
@@ -830,7 +1111,8 @@
       solidBg: false,
       bgOpacity: 100,
       outputWidth: 320,
-      outputHeight: 140
+      outputHeight: 140,
+      roulette: createDefaultRoulette()
     };
 
     document.body.classList.add(isControlView ? "control-view" : "display-view");
@@ -861,6 +1143,23 @@
       timerPanelHeader: document.getElementById("timerPanelHeader"),
       timerPanelBody: document.getElementById("timerPanelBody"),
       timerCollapseButton: document.getElementById("timerCollapseButton"),
+      rouletteCountWheel: document.getElementById("rouletteCountWheel"),
+      rouletteControlWheel: document.getElementById("rouletteControlWheel"),
+      rouletteStepCount: document.getElementById("rouletteStepCount"),
+      rouletteStepOptions: document.getElementById("rouletteStepOptions"),
+      rouletteStepSpin: document.getElementById("rouletteStepSpin"),
+      rouletteCountPlus: document.getElementById("rouletteCountPlus"),
+      rouletteCountMinus: document.getElementById("rouletteCountMinus"),
+      rouletteCountValue: document.getElementById("rouletteCountValue"),
+      rouletteConfirmCount: document.getElementById("rouletteConfirmCount"),
+      rouletteOptionInputs: document.getElementById("rouletteOptionInputs"),
+      rouletteConfirmOptions: document.getElementById("rouletteConfirmOptions"),
+      rouletteResult: document.getElementById("rouletteResult"),
+      rouletteSpinButton: document.getElementById("rouletteSpinButton"),
+      rouletteHideBroadcast: document.getElementById("rouletteHideBroadcast"),
+      rouletteResetSetup: document.getElementById("rouletteResetSetup"),
+      rouletteProbabilityList: document.getElementById("rouletteProbabilityList"),
+      rouletteHistoryList: document.getElementById("rouletteHistoryList"),
       hours: document.getElementById("hours"),
       minutes: document.getElementById("minutes"),
       seconds: document.getElementById("seconds"),
@@ -891,6 +1190,7 @@
       outputWidth: document.getElementById("outputWidth"),
       outputHeight: document.getElementById("outputHeight"),
       displayUrl: document.getElementById("displayUrl"),
+      rouletteUrl: document.getElementById("rouletteUrl"),
       controlUrl: document.getElementById("controlUrl")
     };
 
@@ -952,13 +1252,13 @@
 
     function loadState() {
       if (isServerMode) {
-        return { ...defaults };
+        return normalizeState({});
       }
       try {
         const saved = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem(legacyStorageKey) || "{}");
-        return normalizeState({ ...defaults, ...saved });
+        return normalizeState(saved);
       } catch {
-        return { ...defaults };
+        return normalizeState({});
       }
     }
 
@@ -980,7 +1280,68 @@
       next.bgOpacity = clampNumber(next.bgOpacity, 0, 100, defaults.bgOpacity);
       next.outputWidth = clampNumber(next.outputWidth, 120, 1920, defaults.outputWidth);
       next.outputHeight = clampNumber(next.outputHeight, 60, 1080, defaults.outputHeight);
+      next.roulette = normalizeRoulette(next.roulette);
       return next;
+    }
+
+    function createDefaultRoulette() {
+      return {
+        step: "count",
+        count: 2,
+        options: [
+          { label: "선택지 1", weight: 1 },
+          { label: "선택지 2", weight: 1 }
+        ],
+        visible: false,
+        spinning: false,
+        rotation: 0,
+        spinStartedAt: 0,
+        spinDuration: 5200,
+        resultIndex: -1,
+        history: []
+      };
+    }
+
+    function sanitizeRouletteLabel(value, fallback) {
+      const label = String(value || "").trim().slice(0, 40);
+      return label || fallback;
+    }
+
+    function normalizeRoulette(value) {
+      const defaultsRoulette = createDefaultRoulette();
+      const source = value && typeof value === "object" ? value : {};
+      const count = clampInt(source.count, 1, 15);
+      const rawOptions = Array.isArray(source.options) ? source.options : [];
+      const options = [];
+
+      for (let index = 0; index < count; index += 1) {
+        const option = rawOptions[index] && typeof rawOptions[index] === "object" ? rawOptions[index] : {};
+        options.push({
+          label: sanitizeRouletteLabel(option.label, `선택지 ${index + 1}`),
+          weight: clampNumber(option.weight, 1, 999, 1)
+        });
+      }
+
+      const step = ["count", "options", "spin"].includes(source.step) ? source.step : defaultsRoulette.step;
+      const history = Array.isArray(source.history) ? source.history.slice(0, 30).map((item) => ({
+        label: sanitizeRouletteLabel(item?.label, "결과"),
+        at: Number(item?.at) || Date.now()
+      })) : [];
+
+      return {
+        ...defaultsRoulette,
+        ...source,
+        step,
+        count,
+        options,
+        visible: Boolean(source.visible),
+        spinning: Boolean(source.spinning),
+        rotation: Number(source.rotation) || 0,
+        spinStartedAt: Number(source.spinStartedAt) || 0,
+        spinDuration: clampNumber(source.spinDuration, 1800, 12000, defaultsRoulette.spinDuration),
+        resultIndex: clampInt(source.resultIndex, -1, count - 1),
+        history
+      };
     }
 
     function sanitizeFontFile(value) {
@@ -1379,6 +1740,141 @@
       els.timer.replaceChildren(fragment);
     }
 
+    function getRouletteTotalWeight() {
+      return state.roulette.options.reduce((sum, option) => sum + Math.max(1, Number(option.weight) || 1), 0);
+    }
+
+    function getRouletteBackground() {
+      const total = getRouletteTotalWeight();
+      let cursor = 0;
+      const stops = state.roulette.options.map((option, index) => {
+        const start = cursor;
+        cursor += (Math.max(1, Number(option.weight) || 1) / total) * 100;
+        return `${rouletteColors[index % rouletteColors.length]} ${start.toFixed(4)}% ${cursor.toFixed(4)}%`;
+      });
+      return `conic-gradient(from -90deg, ${stops.join(", ")})`;
+    }
+
+    function getRouletteSegmentCenter(index) {
+      const total = getRouletteTotalWeight();
+      let cursor = 0;
+      for (let i = 0; i < state.roulette.options.length; i += 1) {
+        const span = (Math.max(1, Number(state.roulette.options[i].weight) || 1) / total) * 360;
+        if (i === index) return cursor + span / 2;
+        cursor += span;
+      }
+      return 0;
+    }
+
+    function applyRouletteWheelStyle(wheel, duration = 0) {
+      if (!wheel) return;
+      wheel.style.background = getRouletteBackground();
+      wheel.style.setProperty("--roulette-rotation", `${state.roulette.rotation}deg`);
+      wheel.style.setProperty("--roulette-spin-duration", `${duration}ms`);
+    }
+
+    function renderRouletteOptionInputs() {
+      if (!isControlView) return;
+      if (els.rouletteOptionInputs.contains(document.activeElement)) return;
+      const fragment = document.createDocumentFragment();
+      state.roulette.options.forEach((option, index) => {
+        const row = document.createElement("div");
+        row.className = "roulette-option-row";
+
+        const label = document.createElement("label");
+        label.textContent = `[${index + 1}]`;
+        label.htmlFor = `rouletteOption${index}`;
+
+        const input = document.createElement("input");
+        input.id = `rouletteOption${index}`;
+        input.type = "text";
+        input.value = option.label;
+        input.maxLength = 40;
+        input.dataset.rouletteOptionIndex = String(index);
+
+        row.append(label, input);
+        fragment.appendChild(row);
+      });
+      els.rouletteOptionInputs.replaceChildren(fragment);
+    }
+
+    function renderRouletteProbabilityInputs() {
+      if (!isControlView) return;
+      if (els.rouletteProbabilityList.contains(document.activeElement)) return;
+      const fragment = document.createDocumentFragment();
+      state.roulette.options.forEach((option, index) => {
+        const row = document.createElement("div");
+        row.className = "probability-row";
+
+        const label = document.createElement("span");
+        label.textContent = option.label;
+
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "1";
+        input.max = "999";
+        input.step = "1";
+        input.value = option.weight;
+        input.inputMode = "numeric";
+        input.dataset.rouletteWeightIndex = String(index);
+        input.ariaLabel = `${option.label} 확률 가중치`;
+
+        row.append(label, input);
+        fragment.appendChild(row);
+      });
+      els.rouletteProbabilityList.replaceChildren(fragment);
+    }
+
+    function renderRouletteHistory() {
+      if (!isControlView) return;
+      const fragment = document.createDocumentFragment();
+      if (!state.roulette.history.length) {
+        const empty = document.createElement("li");
+        empty.textContent = "아직 기록이 없습니다.";
+        fragment.appendChild(empty);
+      } else {
+        state.roulette.history.slice(0, 10).forEach((item) => {
+          const row = document.createElement("li");
+          const label = document.createElement("span");
+          const time = document.createElement("span");
+          label.textContent = item.label;
+          time.textContent = new Date(item.at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+          row.append(label, time);
+          fragment.appendChild(row);
+        });
+      }
+      els.rouletteHistoryList.replaceChildren(fragment);
+    }
+
+    function getRemainingRouletteSpinDuration() {
+      if (!state.roulette.spinning || !state.roulette.spinStartedAt) return 0;
+      const elapsed = Date.now() - state.roulette.spinStartedAt;
+      return Math.max(0, state.roulette.spinDuration - elapsed);
+    }
+
+    function renderRoulette() {
+      const remainingDuration = getRemainingRouletteSpinDuration();
+      document.documentElement.style.setProperty("--roulette-bg", getRouletteBackground());
+      document.documentElement.style.setProperty("--roulette-rotation", `${state.roulette.rotation}deg`);
+      document.documentElement.style.setProperty("--roulette-spin-duration", `${remainingDuration}ms`);
+
+      if (!isControlView) return;
+
+      els.rouletteStepCount.hidden = state.roulette.step !== "count";
+      els.rouletteStepOptions.hidden = state.roulette.step !== "options";
+      els.rouletteStepSpin.hidden = state.roulette.step !== "spin";
+      els.rouletteCountValue.textContent = state.roulette.count;
+      applyRouletteWheelStyle(els.rouletteCountWheel, 0);
+      applyRouletteWheelStyle(els.rouletteControlWheel, remainingDuration);
+      renderRouletteOptionInputs();
+      renderRouletteProbabilityInputs();
+      renderRouletteHistory();
+      const result = state.roulette.resultIndex >= 0 ? state.roulette.options[state.roulette.resultIndex]?.label : "";
+      els.rouletteResult.textContent = state.roulette.spinning ? "돌리는 중..." : (result ? `결과: ${result}` : "");
+      els.rouletteSpinButton.disabled = state.roulette.spinning;
+      els.rouletteSpinButton.textContent = state.roulette.spinning ? "돌리는 중..." : "원판 돌리기";
+    }
+
     function render(fromRemote = false) {
       const currentSeconds = activeSeconds();
       lastRenderedSecond = Math.floor(currentSeconds);
@@ -1387,8 +1883,10 @@
 
       if (isControlView) {
         const displayUrl = `${location.origin}/display?room=${encodeURIComponent(room)}`;
+        const rouletteUrl = `${location.origin}/roulette?room=${encodeURIComponent(room)}`;
         const controlUrl = `${location.origin}/control?room=${encodeURIComponent(room)}&key=${encodeURIComponent(controlKey)}`;
         els.displayUrl.value = displayUrl;
+        els.rouletteUrl.value = rouletteUrl;
         els.controlUrl.value = controlUrl;
         els.toggleRun.textContent = state.running ? "일시정지" : "시작";
         els.modeButtons.forEach((button) => {
@@ -1429,6 +1927,7 @@
       document.documentElement.style.setProperty("--output-ratio", `${state.outputWidth} / ${state.outputHeight}`);
       applyTimerFont();
       document.body.classList.toggle("solid-bg", state.solidBg);
+      renderRoulette();
       fitTimer();
     }
 
@@ -1521,6 +2020,111 @@
       syncAndRender();
     }
 
+    function setRouletteCount(count) {
+      const nextCount = clampInt(count, 1, 15);
+      const options = [...state.roulette.options];
+      while (options.length < nextCount) {
+        options.push({ label: `선택지 ${options.length + 1}`, weight: 1 });
+      }
+      state.roulette.count = nextCount;
+      state.roulette.options = options.slice(0, nextCount);
+      state.roulette.resultIndex = -1;
+      state.roulette.visible = false;
+      state.roulette.spinning = false;
+      syncAndRender();
+    }
+
+    function confirmRouletteCount() {
+      state.roulette.step = "options";
+      state.roulette.resultIndex = -1;
+      state.roulette.visible = false;
+      state.roulette.spinning = false;
+      syncAndRender();
+    }
+
+    function readRouletteOptionsFromInputs() {
+      els.rouletteOptionInputs.querySelectorAll("[data-roulette-option-index]").forEach((input) => {
+        const index = Number(input.dataset.rouletteOptionIndex);
+        if (!state.roulette.options[index]) return;
+        state.roulette.options[index].label = sanitizeRouletteLabel(input.value, `선택지 ${index + 1}`);
+      });
+    }
+
+    function confirmRouletteOptions() {
+      readRouletteOptionsFromInputs();
+      state.roulette.step = "spin";
+      state.roulette.resultIndex = -1;
+      state.roulette.visible = false;
+      state.roulette.spinning = false;
+      syncAndRender();
+    }
+
+    function updateRouletteWeight(input) {
+      const index = Number(input.dataset.rouletteWeightIndex);
+      if (!state.roulette.options[index]) return;
+      state.roulette.options[index].weight = clampNumber(input.value, 1, 999, 1);
+      state.roulette.resultIndex = -1;
+      syncAndRender();
+    }
+
+    function pickRouletteResultIndex() {
+      const total = getRouletteTotalWeight();
+      let target = Math.random() * total;
+      for (let index = 0; index < state.roulette.options.length; index += 1) {
+        target -= Math.max(1, Number(state.roulette.options[index].weight) || 1);
+        if (target <= 0) return index;
+      }
+      return state.roulette.options.length - 1;
+    }
+
+    function getRouletteTargetRotation(resultIndex) {
+      const current = Number(state.roulette.rotation) || 0;
+      const currentMod = ((current % 360) + 360) % 360;
+      const center = getRouletteSegmentCenter(resultIndex);
+      const alignDelta = (360 - ((currentMod + center) % 360)) % 360;
+      return current + (360 * 7) + alignDelta;
+    }
+
+    function addRouletteHistory(resultIndex) {
+      const option = state.roulette.options[resultIndex];
+      if (!option) return;
+      state.roulette.history = [
+        { label: option.label, at: Date.now() },
+        ...state.roulette.history
+      ].slice(0, 30);
+    }
+
+    function finishRouletteSpin() {
+      if (!state.roulette.spinning) return;
+      state.roulette.spinning = false;
+      addRouletteHistory(state.roulette.resultIndex);
+      syncAndRender();
+    }
+
+    function spinRoulette() {
+      if (state.roulette.spinning || state.roulette.step !== "spin") return;
+      const resultIndex = pickRouletteResultIndex();
+      state.roulette.visible = true;
+      state.roulette.spinning = true;
+      state.roulette.spinStartedAt = Date.now();
+      state.roulette.spinDuration = 5200;
+      state.roulette.resultIndex = resultIndex;
+      state.roulette.rotation = getRouletteTargetRotation(resultIndex);
+      syncAndRender();
+      window.setTimeout(finishRouletteSpin, state.roulette.spinDuration + 180);
+    }
+
+    function hideRouletteBroadcast() {
+      state.roulette.visible = false;
+      state.roulette.spinning = false;
+      syncAndRender();
+    }
+
+    function resetRouletteSetup() {
+      state.roulette = createDefaultRoulette();
+      syncAndRender();
+    }
+
     function bindController() {
       if (!isControlView) return;
 
@@ -1544,6 +2148,32 @@
 
       els.stage.addEventListener("click", () => {
         toggleTimerPanelCollapsed();
+      });
+
+      els.rouletteCountPlus.addEventListener("click", () => setRouletteCount(state.roulette.count + 1));
+      els.rouletteCountMinus.addEventListener("click", () => setRouletteCount(state.roulette.count - 1));
+      els.rouletteConfirmCount.addEventListener("click", confirmRouletteCount);
+      els.rouletteConfirmOptions.addEventListener("click", confirmRouletteOptions);
+      els.rouletteSpinButton.addEventListener("click", spinRoulette);
+      els.rouletteHideBroadcast.addEventListener("click", hideRouletteBroadcast);
+      els.rouletteResetSetup.addEventListener("click", resetRouletteSetup);
+
+      els.rouletteOptionInputs.addEventListener("input", (event) => {
+        if (!event.target.matches("[data-roulette-option-index]")) return;
+        const index = Number(event.target.dataset.rouletteOptionIndex);
+        if (!state.roulette.options[index]) return;
+        state.roulette.options[index].label = event.target.value.slice(0, 40);
+      });
+
+      els.rouletteOptionInputs.addEventListener("change", () => {
+        readRouletteOptionsFromInputs();
+        syncAndRender();
+      });
+
+      els.rouletteProbabilityList.addEventListener("input", (event) => {
+        if (event.target.matches("[data-roulette-weight-index]")) {
+          updateRouletteWeight(event.target);
+        }
       });
 
       els.timeInputs.forEach((input) => {
@@ -1800,6 +2430,10 @@
           state.lastStartedAt = Date.now();
           saveState();
         }
+      }
+
+      if (isControlView && state.roulette.spinning && getRemainingRouletteSpinDuration() <= 0) {
+        finishRouletteSpin();
       }
 
       const currentSecond = Math.floor(activeSeconds());

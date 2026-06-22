@@ -6,6 +6,7 @@ const port = Number(process.env.PORT || process.env.OBS_TIMER_PORT || 17171);
 const host = process.env.OBS_TIMER_HOST || process.env.HOST || "0.0.0.0";
 const rootDir = __dirname;
 const htmlPath = path.join(rootDir, "obs_timer.html");
+const roulettePath = path.join(rootDir, "obs_roulette.html");
 const controllerPath = path.join(rootDir, "obs_timer_controller.html");
 const roomsPath = path.join(rootDir, "obs_timer_rooms.json");
 const fontsDir = path.join(rootDir, "fonts");
@@ -27,7 +28,8 @@ const defaults = {
   solidBg: false,
   bgOpacity: 100,
   outputWidth: 320,
-  outputHeight: 140
+  outputHeight: 140,
+  roulette: createDefaultRoulette()
 };
 
 let rooms = loadRooms();
@@ -68,7 +70,74 @@ function normalizeState(value) {
   next.bgOpacity = clampNumber(next.bgOpacity, 0, 100, defaults.bgOpacity);
   next.outputWidth = clampNumber(next.outputWidth, 120, 1920, defaults.outputWidth);
   next.outputHeight = clampNumber(next.outputHeight, 60, 1080, defaults.outputHeight);
+  next.roulette = normalizeRoulette(next.roulette);
   return next;
+}
+
+function clampInt(value, min, max) {
+  const number = Number.parseInt(value, 10);
+  if (Number.isNaN(number)) return min;
+  return Math.min(max, Math.max(min, number));
+}
+
+function createDefaultRoulette() {
+  return {
+    step: "count",
+    count: 2,
+    options: [
+      { label: "선택지 1", weight: 1 },
+      { label: "선택지 2", weight: 1 }
+    ],
+    visible: false,
+    spinning: false,
+    rotation: 0,
+    spinStartedAt: 0,
+    spinDuration: 5200,
+    resultIndex: -1,
+    history: []
+  };
+}
+
+function sanitizeRouletteLabel(value, fallback) {
+  const label = String(value || "").trim().slice(0, 40);
+  return label || fallback;
+}
+
+function normalizeRoulette(value) {
+  const defaultsRoulette = createDefaultRoulette();
+  const source = value && typeof value === "object" ? value : {};
+  const count = clampInt(source.count, 1, 15);
+  const rawOptions = Array.isArray(source.options) ? source.options : [];
+  const options = [];
+
+  for (let index = 0; index < count; index += 1) {
+    const option = rawOptions[index] && typeof rawOptions[index] === "object" ? rawOptions[index] : {};
+    options.push({
+      label: sanitizeRouletteLabel(option.label, `선택지 ${index + 1}`),
+      weight: clampNumber(option.weight, 1, 999, 1)
+    });
+  }
+
+  const step = ["count", "options", "spin"].includes(source.step) ? source.step : defaultsRoulette.step;
+  const history = Array.isArray(source.history) ? source.history.slice(0, 30).map((item) => ({
+    label: sanitizeRouletteLabel(item?.label, "결과"),
+    at: Number(item?.at) || Date.now()
+  })) : [];
+
+  return {
+    ...defaultsRoulette,
+    ...source,
+    step,
+    count,
+    options,
+    visible: Boolean(source.visible),
+    spinning: Boolean(source.spinning),
+    rotation: Number(source.rotation) || 0,
+    spinStartedAt: Number(source.spinStartedAt) || 0,
+    spinDuration: clampNumber(source.spinDuration, 1800, 12000, defaultsRoulette.spinDuration),
+    resultIndex: clampInt(source.resultIndex, -1, count - 1),
+    history
+  };
 }
 
 function sanitizeFontName(value) {
@@ -157,7 +226,7 @@ function getRoomName(url) {
 
 function getRoomRecord(room) {
   if (!rooms[room]) {
-    rooms[room] = { key: "", state: { ...defaults } };
+    rooms[room] = { key: "", state: normalizeState({}) };
   }
   return rooms[room];
 }
@@ -251,6 +320,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && (url.pathname === "/roulette" || url.pathname === "/roulette-display" || url.pathname === "/obs_roulette.html")) {
+    serveHtml(res, roulettePath);
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/obs_timer_controller.html") {
     serveHtml(res, controllerPath);
     return;
@@ -313,6 +387,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, host, () => {
   console.log(`OBS timer server running`);
   console.log(`Display:    http://127.0.0.1:${port}/display`);
+  console.log(`Roulette:   http://127.0.0.1:${port}/roulette`);
   console.log(`Controller: http://127.0.0.1:${port}/control`);
   console.log(`Listening:  ${host}:${port}`);
 });

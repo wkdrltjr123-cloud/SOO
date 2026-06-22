@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OBS Roulette</title>
+  <style>
+    :root {
+      --roulette-bg: conic-gradient(from -90deg, #86ef6f 0 50%, #ece86a 50% 100%);
+      --roulette-rotation: 0deg;
+      --roulette-spin-duration: 0ms;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      font-family: "Segoe UI", "Pretendard", "Noto Sans KR", Arial, sans-serif;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .roulette-stage {
+      position: relative;
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      align-items: center;
+      justify-content: center;
+      padding: 4vmin;
+    }
+
+    body.roulette-live .roulette-stage {
+      display: flex;
+    }
+
+    .roulette-pointer {
+      position: absolute;
+      top: 2vmin;
+      left: 50%;
+      z-index: 2;
+      color: #fff;
+      font-size: clamp(18px, 7vmin, 44px);
+      line-height: 1;
+      text-shadow: 0 2px 5px rgba(0, 0, 0, 0.72);
+      transform: translateX(-50%);
+    }
+
+    .roulette-wheel {
+      width: min(82vw, 82vh);
+      aspect-ratio: 1;
+      border: max(2px, 0.45vmin) solid rgba(0, 0, 0, 0.78);
+      border-radius: 50%;
+      background: var(--roulette-bg);
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
+      transform: rotate(var(--roulette-rotation));
+      transition: transform var(--roulette-spin-duration) cubic-bezier(0.12, 0.72, 0.08, 1);
+    }
+  </style>
+</head>
+<body>
+  <main class="roulette-stage" aria-label="룰렛 방송 화면">
+    <div class="roulette-pointer">▼</div>
+    <div id="rouletteWheel" class="roulette-wheel"></div>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const room = sanitizeRoom(params.get("room") || params.get("r")) || "default";
+    const stateEndpoint = `/state?room=${encodeURIComponent(room)}`;
+    const rouletteColors = [
+      "#86ef6f", "#ece86a", "#56c7ff", "#ff8a3d", "#c084fc",
+      "#f472b6", "#34d399", "#facc15", "#60a5fa", "#fb7185",
+      "#a3e635", "#f97316", "#22d3ee", "#e879f9", "#fef08a"
+    ];
+
+    const wheel = document.getElementById("rouletteWheel");
+    let lastPayload = "";
+    let lastRotation = 0;
+    let lastSpinStartedAt = 0;
+
+    function sanitizeRoom(value) {
+      return String(value || "")
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]/g, "")
+        .slice(0, 40);
+    }
+
+    function clampNumber(value, min, max, fallback) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return fallback;
+      return Math.min(max, Math.max(min, number));
+    }
+
+    function normalizeRoulette(value) {
+      const source = value && typeof value === "object" ? value : {};
+      const count = clampNumber(source.count, 1, 15, 2);
+      const rawOptions = Array.isArray(source.options) ? source.options : [];
+      const options = [];
+
+      for (let index = 0; index < count; index += 1) {
+        const option = rawOptions[index] && typeof rawOptions[index] === "object" ? rawOptions[index] : {};
+        options.push({
+          label: String(option.label || `선택지 ${index + 1}`).slice(0, 40),
+          weight: clampNumber(option.weight, 1, 999, 1)
+        });
+      }
+
+      return {
+        count,
+        options,
+        visible: Boolean(source.visible),
+        spinning: Boolean(source.spinning),
+        rotation: Number(source.rotation) || 0,
+        spinStartedAt: Number(source.spinStartedAt) || 0,
+        spinDuration: clampNumber(source.spinDuration, 1800, 12000, 5200)
+      };
+    }
+
+    function getTotalWeight(roulette) {
+      return roulette.options.reduce((sum, option) => sum + Math.max(1, Number(option.weight) || 1), 0);
+    }
+
+    function getRouletteBackground(roulette) {
+      const total = getTotalWeight(roulette);
+      let cursor = 0;
+      const stops = roulette.options.map((option, index) => {
+        const start = cursor;
+        cursor += (Math.max(1, Number(option.weight) || 1) / total) * 100;
+        return `${rouletteColors[index % rouletteColors.length]} ${start.toFixed(4)}% ${cursor.toFixed(4)}%`;
+      });
+      return `conic-gradient(from -90deg, ${stops.join(", ")})`;
+    }
+
+    function getRemainingDuration(roulette) {
+      if (!roulette.spinning || !roulette.spinStartedAt) return 0;
+      return Math.max(0, roulette.spinDuration - (Date.now() - roulette.spinStartedAt));
+    }
+
+    function applyRoulette(roulette) {
+      const live = roulette.visible || roulette.spinning;
+      document.body.classList.toggle("roulette-live", live);
+      document.documentElement.style.setProperty("--roulette-bg", getRouletteBackground(roulette));
+
+      if (!live) {
+        wheel.style.transition = "none";
+        lastRotation = roulette.rotation;
+        wheel.style.transform = `rotate(${lastRotation}deg)`;
+        return;
+      }
+
+      const remaining = getRemainingDuration(roulette);
+      if (roulette.spinning && roulette.spinStartedAt !== lastSpinStartedAt && remaining > 0) {
+        wheel.style.transition = "none";
+        wheel.style.transform = `rotate(${lastRotation}deg)`;
+        wheel.offsetHeight;
+        wheel.style.transition = `transform ${remaining}ms cubic-bezier(0.12, 0.72, 0.08, 1)`;
+        wheel.style.transform = `rotate(${roulette.rotation}deg)`;
+        lastSpinStartedAt = roulette.spinStartedAt;
+      } else {
+        wheel.style.transition = "none";
+        wheel.style.transform = `rotate(${roulette.rotation}deg)`;
+      }
+
+      lastRotation = roulette.rotation;
+    }
+
+    async function fetchState() {
+      try {
+        const response = await fetch(stateEndpoint, { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.text();
+        if (payload === lastPayload) return;
+        lastPayload = payload;
+        const state = JSON.parse(payload);
+        applyRoulette(normalizeRoulette(state.roulette));
+      } catch {
+        // The server may still be waking up.
+      }
+    }
+
+    fetchState();
+    window.setInterval(fetchState, 250);
+  </script>
+</body>
+</html>
