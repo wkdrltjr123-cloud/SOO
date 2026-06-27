@@ -102,8 +102,21 @@ function createDefaultRoulette() {
   };
 }
 
+function cleanRouletteLabelText(value) {
+  return String(value || "").normalize("NFC").replace(/[\uFFFD\u0000-\u001F\u007F]/g, "").trim();
+}
+
+function sliceRouletteLabelText(value) {
+  const text = cleanRouletteLabelText(value);
+  if (Intl?.Segmenter) {
+    const segmenter = new Intl.Segmenter("ko", { granularity: "grapheme" });
+    return Array.from(segmenter.segment(text), (part) => part.segment).slice(0, 7).join("");
+  }
+  return Array.from(text).slice(0, 7).join("");
+}
+
 function sanitizeRouletteLabel(value, fallback) {
-  const label = Array.from(String(value || "").trim()).slice(0, 7).join("");
+  const label = sliceRouletteLabelText(value);
   return label || fallback;
 }
 

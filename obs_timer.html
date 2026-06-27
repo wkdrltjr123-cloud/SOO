@@ -1491,13 +1491,27 @@
       };
     }
 
+    function cleanRouletteLabelText(value, trim = false) {
+      const text = String(value || "").normalize("NFC").replace(/[\uFFFD\u0000-\u001F\u007F]/g, "");
+      return trim ? text.trim() : text;
+    }
+
+    function sliceRouletteLabelText(value, trim = false) {
+      const text = cleanRouletteLabelText(value, trim);
+      if (Intl?.Segmenter) {
+        const segmenter = new Intl.Segmenter("ko", { granularity: "grapheme" });
+        return Array.from(segmenter.segment(text), (part) => part.segment).slice(0, 7).join("");
+      }
+      return Array.from(text).slice(0, 7).join("");
+    }
+
     function sanitizeRouletteLabel(value, fallback) {
-      const label = Array.from(String(value || "").trim()).slice(0, 7).join("");
+      const label = sliceRouletteLabelText(value, true);
       return label || fallback;
     }
 
     function sanitizeRouletteDraftLabel(value) {
-      return Array.from(String(value || "")).slice(0, 7).join("");
+      return sliceRouletteLabelText(value, false);
     }
 
     function normalizeManualProbability(value) {
@@ -2549,7 +2563,6 @@
           const index = Number(event.target.dataset.rouletteOptionIndex);
           if (!state.roulette.options[index]) return;
           if (event.isComposing || event.target.dataset.composing === "1") {
-            state.roulette.options[index].label = event.target.value;
             return;
           }
           const nextLabel = sanitizeRouletteDraftLabel(event.target.value);
