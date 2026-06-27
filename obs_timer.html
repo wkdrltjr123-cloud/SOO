@@ -897,6 +897,8 @@
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 6px;
       background: rgba(255, 255, 255, 0.06);
+      user-select: text;
+      -webkit-user-select: text;
     }
 
     .roulette-history-title {
@@ -920,7 +922,15 @@
       justify-content: space-between;
       gap: 10px;
       color: rgba(255, 255, 255, 0.78);
+      cursor: text;
       font-size: 12px;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    .roulette-history-list span {
+      user-select: text;
+      -webkit-user-select: text;
     }
 
     .nudge-grid {
@@ -1486,6 +1496,10 @@
       return label || fallback;
     }
 
+    function sanitizeRouletteDraftLabel(value) {
+      return Array.from(String(value || "")).slice(0, 7).join("");
+    }
+
     function normalizeManualProbability(value) {
       if (value === "" || value === null || value === undefined) return null;
       const number = Number(value);
@@ -2031,23 +2045,25 @@
       return next;
     }
 
-    function getRouletteLabelLayout(optionCount, visualCenter) {
+    function getRouletteLabelLayout(optionCount, visualCenter, spanDeg = 360 / Math.max(1, optionCount)) {
       if (optionCount <= 1) {
         return { radius: 0, width: 70, angle: 0 };
       }
 
-      const width = optionCount <= 2 ? 44 : optionCount <= 3 ? 42 : optionCount > 6 ? 34 : 36;
+      const baseWidth = optionCount <= 2 ? 44 : optionCount <= 3 ? 42 : optionCount > 6 ? 34 : 36;
+      const width = Math.max(12, Math.min(baseWidth, spanDeg * 1.25));
       const radius = optionCount <= 2 ? 26 : optionCount <= 3 ? 28 : optionCount <= 6 ? 31 : optionCount <= 10 ? 32 : 34;
       const angle = optionCount <= 3 ? 0 : normalizeReadableAngle(visualCenter - 90);
 
       return { radius, width, angle };
     }
 
-    function getRouletteLabelFontSize(optionCount, text) {
+    function getRouletteLabelFontSize(optionCount, text, spanDeg = 360 / Math.max(1, optionCount)) {
       const length = Math.max(1, Array.from(String(text || "")).length);
       const base = optionCount > 12 ? 13 : optionCount > 9 ? 14 : optionCount > 6 ? 15 : 16;
       const penalty = optionCount > 12 ? 1.15 : optionCount > 9 ? 1 : 0.8;
-      return Math.max(optionCount > 12 ? 8 : 10, base - Math.max(0, length - 4) * penalty);
+      const spanPenalty = spanDeg < 24 ? (24 - spanDeg) * 0.35 : 0;
+      return Math.max(optionCount > 12 ? 7 : 9, base - Math.max(0, length - 4) * penalty - spanPenalty);
     }
 
     function renderRouletteLabels(wheel) {
@@ -2061,7 +2077,7 @@
         const span = (getOptionWeight(option) / total) * 360;
         const center = cursor + span / 2;
         const visualCenter = getRouletteVisualCenter(center);
-        const layout = getRouletteLabelLayout(optionCount, visualCenter);
+        const layout = getRouletteLabelLayout(optionCount, visualCenter, span);
         const radians = visualCenter * Math.PI / 180;
         const label = document.createElement("span");
         const labelText = sanitizeRouletteLabel(option.label, `선택지 ${index + 1}`);
@@ -2071,7 +2087,7 @@
         label.style.top = `${50 - Math.cos(radians) * layout.radius}%`;
         label.style.setProperty("--roulette-label-angle", `${layout.angle}deg`);
         label.style.setProperty("--roulette-label-width", `${layout.width}%`);
-        label.style.fontSize = `${getRouletteLabelFontSize(optionCount, labelText)}px`;
+        label.style.fontSize = `${getRouletteLabelFontSize(optionCount, labelText, span)}px`;
         label.style.color = "#ffffff";
         fragment.appendChild(label);
         cursor += span;
@@ -2533,8 +2549,11 @@
         if (event.target.matches("[data-roulette-option-index]")) {
           const index = Number(event.target.dataset.rouletteOptionIndex);
           if (!state.roulette.options[index]) return;
-          state.roulette.options[index].label = sanitizeRouletteLabel(event.target.value, `선택지 ${index + 1}`);
-          event.target.value = state.roulette.options[index].label;
+          const nextLabel = sanitizeRouletteDraftLabel(event.target.value);
+          state.roulette.options[index].label = nextLabel;
+          if (event.target.value !== nextLabel) {
+            event.target.value = nextLabel;
+          }
           return;
         }
         if (event.target.matches("[data-roulette-probability-index]")) {

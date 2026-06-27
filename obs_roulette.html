@@ -266,12 +266,13 @@
       return next;
     }
 
-    function getRouletteLabelLayout(optionCount, visualCenter) {
+    function getRouletteLabelLayout(optionCount, visualCenter, spanDeg = 360 / Math.max(1, optionCount)) {
       if (optionCount <= 1) {
         return { radius: 0, width: 72, angle: 0 };
       }
 
-      const width = optionCount <= 2 ? 44 : optionCount <= 3 ? 42 : optionCount > 6 ? 34 : 36;
+      const baseWidth = optionCount <= 2 ? 44 : optionCount <= 3 ? 42 : optionCount > 6 ? 34 : 36;
+      const width = Math.max(10, Math.min(baseWidth, spanDeg * 1.25));
       const radius = optionCount <= 2 ? 26 : optionCount <= 3 ? 28 : optionCount <= 6 ? 31 : optionCount <= 10 ? 32 : 34;
       const angle = optionCount <= 3 ? 0 : normalizeReadableAngle(visualCenter - 90);
       return { radius, width, angle };
@@ -352,15 +353,16 @@
         const spanDeg = (getOptionWeight(option) / total) * 360;
         const centerDeg = cursor + spanDeg / 2;
         const visualCenter = centerDeg - 90;
-        const layout = getRouletteLabelLayout(optionCount, visualCenter);
+        const layout = getRouletteLabelLayout(optionCount, visualCenter, spanDeg);
         const radians = visualCenter * Math.PI / 180;
         const labelRadius = radius * (layout.radius / 50);
         const x = center + Math.sin(radians) * labelRadius;
         const y = center - Math.cos(radians) * labelRadius;
         const text = sanitizeRouletteLabel(option.label, `선택지 ${index + 1}`);
         const maxWidth = cssSize * (layout.width / 100);
-        const baseSize = cssSize * (optionCount > 12 ? 0.043 : optionCount > 9 ? 0.048 : optionCount > 6 ? 0.052 : 0.058);
-        const minSize = Math.max(7, cssSize * 0.026);
+        const spanScale = Math.max(0.55, Math.min(1, spanDeg / 24));
+        const baseSize = cssSize * (optionCount > 12 ? 0.043 : optionCount > 9 ? 0.048 : optionCount > 6 ? 0.052 : 0.058) * spanScale;
+        const minSize = Math.max(6, cssSize * 0.022);
         const strokeWidth = Math.max(3, cssSize * 0.012);
         drawLabel(text, x, y, layout.angle, maxWidth, baseSize, minSize, strokeWidth);
         cursor += spanDeg;
@@ -378,7 +380,7 @@
 
     function getVisualSpinRevolutions(duration) {
       if (duration <= 2000) return 2;
-      if (duration <= 3000) return 2.75;
+      if (duration <= 3000) return 3;
       if (duration <= 5000) return 4;
       return 5;
     }
