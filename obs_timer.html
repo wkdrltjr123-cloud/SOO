@@ -2112,7 +2112,6 @@
         input.id = `rouletteOption${index}`;
         input.type = "text";
         input.value = option.label;
-        input.maxLength = 7;
         input.dataset.rouletteOptionIndex = String(index);
 
         const probabilityInput = document.createElement("input");
@@ -2549,6 +2548,10 @@
         if (event.target.matches("[data-roulette-option-index]")) {
           const index = Number(event.target.dataset.rouletteOptionIndex);
           if (!state.roulette.options[index]) return;
+          if (event.isComposing || event.target.dataset.composing === "1") {
+            state.roulette.options[index].label = event.target.value;
+            return;
+          }
           const nextLabel = sanitizeRouletteDraftLabel(event.target.value);
           state.roulette.options[index].label = nextLabel;
           if (event.target.value !== nextLabel) {
@@ -2562,6 +2565,23 @@
           state.roulette.options[index].manualProbability = normalizeManualProbability(event.target.value);
           applyRouletteProbabilityWeights(state.roulette.options);
           state.roulette.resultIndex = -1;
+        }
+      });
+
+      els.rouletteOptionInputs.addEventListener("compositionstart", (event) => {
+        if (!event.target.matches("[data-roulette-option-index]")) return;
+        event.target.dataset.composing = "1";
+      });
+
+      els.rouletteOptionInputs.addEventListener("compositionend", (event) => {
+        if (!event.target.matches("[data-roulette-option-index]")) return;
+        event.target.dataset.composing = "";
+        const index = Number(event.target.dataset.rouletteOptionIndex);
+        if (!state.roulette.options[index]) return;
+        const nextLabel = sanitizeRouletteDraftLabel(event.target.value);
+        state.roulette.options[index].label = nextLabel;
+        if (event.target.value !== nextLabel) {
+          event.target.value = nextLabel;
         }
       });
 
