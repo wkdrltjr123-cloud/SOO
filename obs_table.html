@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OBS Table Display</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      font-family: "Segoe UI", "Pretendard", "Noto Sans KR", Arial, sans-serif;
+    }
+
+    :root {
+      --row-count: 51;
+    }
+
+    .table-stage {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+      align-items: stretch;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .score-table {
+      width: 100%;
+      height: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      color: #101010;
+      font-size: clamp(6px, calc(78vh / var(--row-count)), 28px);
+      font-weight: 800;
+      line-height: 1.05;
+    }
+
+    th,
+    td {
+      border: 1px solid rgba(0, 0, 0, 0.62);
+      padding: 0.16em 0.35em;
+      overflow: hidden;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.24);
+    }
+
+    th {
+      background: #050505;
+      color: #ffffff;
+      font-size: 0.92em;
+      text-shadow: none;
+    }
+
+    td:first-child {
+      width: 58%;
+    }
+
+    td:last-child {
+      width: 42%;
+    }
+  </style>
+</head>
+<body>
+  <main class="table-stage" aria-label="표 방송 화면">
+    <table class="score-table">
+      <thead>
+        <tr>
+          <th id="leftHeader">이름</th>
+          <th id="rightHeader">판매성공</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const room = sanitizeRoom(params.get("room") || params.get("r")) || "default";
+    const stateEndpoint = `/state?room=${encodeURIComponent(room)}`;
+    const tableRowLimit = 50;
+    const tableColors = [
+      "#ffec36", "#ffd43b", "#a8f0a3", "#ff5f64", "#aeefff",
+      "#d8c5ff", "#ffc4d0", "#78dd86", "#ffbd72", "#ffb15e"
+    ];
+    const fallbackTable = createDefaultTable();
+    const els = {
+      leftHeader: document.getElementById("leftHeader"),
+      rightHeader: document.getElementById("rightHeader"),
+      tableBody: document.getElementById("tableBody")
+    };
+
+    let lastPayload = "";
+
+    function sanitizeRoom(value) {
+      return String(value || "")
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]/g, "")
+        .slice(0, 40);
+    }
+
+    function createDefaultTable() {
+      return {
+        headers: ["이름", "판매성공"],
+        rows: Array.from({ length: tableRowLimit }, (_, index) => ({
+          name: String(index + 1),
+          value: "0"
+        }))
+      };
+    }
+
+    function sliceTableText(value, limit, trim = true) {
+      const text = String(value || "")
+        .normalize("NFC")
+        .replace(/[\uFFFD\u0000-\u001F\u007F]/g, "");
+      const normalized = trim ? text.trim() : text;
+      if (typeof Intl !== "undefined" && Intl.Segmenter) {
+        const segmenter = new Intl.Segmenter("ko", { granularity: "grapheme" });
+        return Array.from(segmenter.segment(normalized), (part) => part.segment).slice(0, limit).join("");
+      }
+      return Array.from(normalized).slice(0, limit).join("");
+    }
+
+    function sanitizeTableText(value, fallback, limit) {
+      const text = sliceTableText(value, limit, true);
+      return text || fallback;
+    }
+
+    function normalizeTable(value) {
+      const source = value && typeof value === "object" ? value : {};
+      const headers = Array.isArray(source.headers) ? source.headers : [];
+      const rows = Array.isArray(source.rows) ? source.rows : [];
+
+      return {
+        headers: [
+          sanitizeTableText(headers[0], fallbackTable.headers[0], 16),
+          sanitizeTableText(headers[1], fallbackTable.headers[1], 16)
+        ],
+        rows: Array.from({ length: tableRowLimit }, (_, index) => {
+          const row = rows[index] && typeof rows[index] === "object" ? rows[index] : {};
+          return {
+            name: sanitizeTableText(row.name, String(index + 1), 24),
+            value: sanitizeTableText(row.value, "0", 32)
+          };
+        })
+      };
+    }
+
+    function renderTable(table) {
+      document.documentElement.style.setProperty("--row-count", String(table.rows.length + 1));
+      els.leftHeader.textContent = table.headers[0];
+      els.rightHeader.textContent = table.headers[1];
+
+      const fragment = document.createDocumentFragment();
+      table.rows.forEach((row, index) => {
+        const tr = document.createElement("tr");
+        tr.style.background = tableColors[index % tableColors.length];
+
+        const name = document.createElement("td");
+        name.textContent = row.name;
+
+        const value = document.createElement("td");
+        value.textContent = row.value;
+
+        tr.append(name, value);
+        fragment.appendChild(tr);
+      });
+      els.tableBody.replaceChildren(fragment);
+    }
+
+    async function fetchState() {
+      try {
+        const response = await fetch(stateEndpoint, { cache: "no-store" });
+        if (!response.ok) return;
+        const state = await response.json();
+        const table = normalizeTable(state.table);
+        const payload = JSON.stringify(table);
+        if (payload === lastPayload) return;
+        lastPayload = payload;
+        renderTable(table);
+      } catch {
+        renderTable(fallbackTable);
+      }
+    }
+
+    renderTable(fallbackTable);
+    fetchState();
+    window.setInterval(fetchState, 400);
+  </script>
+</body>
+</html>

@@ -7,6 +7,7 @@ const host = process.env.OBS_TIMER_HOST || process.env.HOST || "0.0.0.0";
 const rootDir = __dirname;
 const htmlPath = path.join(rootDir, "obs_timer.html");
 const roulettePath = path.join(rootDir, "obs_roulette.html");
+const tablePath = path.join(rootDir, "obs_table.html");
 const controllerPath = path.join(rootDir, "obs_timer_controller.html");
 const roomsPath = path.join(rootDir, "obs_timer_rooms.json");
 const fontsDir = path.join(rootDir, "fonts");
@@ -15,6 +16,7 @@ const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
 const defaultRouletteSpinDuration = 3000;
 const rouletteSpinSettleDelay = 900;
 const rouletteHistoryLimit = 500;
+const tableRowLimit = 50;
 
 const defaults = {
   duration: 0,
@@ -33,7 +35,8 @@ const defaults = {
   bgOpacity: 100,
   outputWidth: 320,
   outputHeight: 140,
-  roulette: createDefaultRoulette()
+  roulette: createDefaultRoulette(),
+  table: createDefaultTable()
 };
 
 let rooms = loadRooms();
@@ -75,6 +78,7 @@ function normalizeState(value) {
   next.outputWidth = clampNumber(next.outputWidth, 120, 1920, defaults.outputWidth);
   next.outputHeight = clampNumber(next.outputHeight, 60, 1080, defaults.outputHeight);
   next.roulette = normalizeRoulette(next.roulette);
+  next.table = normalizeTable(next.table);
   return next;
 }
 
@@ -229,6 +233,54 @@ function normalizeRoulette(value) {
     spinDuration: normalizeRouletteSpinDuration(source.spinDuration),
     resultIndex: clampInt(source.resultIndex, -1, count - 1),
     history
+  };
+}
+
+function createDefaultTable() {
+  return {
+    headers: ["이름", "판매성공"],
+    rows: Array.from({ length: tableRowLimit }, (_, index) => ({
+      name: String(index + 1),
+      value: "0"
+    }))
+  };
+}
+
+function sliceTableText(value, limit, trim = true) {
+  const text = String(value || "")
+    .normalize("NFC")
+    .replace(/[\uFFFD\u0000-\u001F\u007F]/g, "");
+  const normalized = trim ? text.trim() : text;
+  if (typeof Intl !== "undefined" && Intl.Segmenter) {
+    const segmenter = new Intl.Segmenter("ko", { granularity: "grapheme" });
+    return Array.from(segmenter.segment(normalized), (part) => part.segment).slice(0, limit).join("");
+  }
+  return Array.from(normalized).slice(0, limit).join("");
+}
+
+function sanitizeTableText(value, fallback, limit) {
+  const text = sliceTableText(value, limit, true);
+  return text || fallback;
+}
+
+function normalizeTable(value) {
+  const defaultsTable = createDefaultTable();
+  const source = value && typeof value === "object" ? value : {};
+  const headers = Array.isArray(source.headers) ? source.headers : [];
+  const rows = Array.isArray(source.rows) ? source.rows : [];
+
+  return {
+    headers: [
+      sanitizeTableText(headers[0], defaultsTable.headers[0], 16),
+      sanitizeTableText(headers[1], defaultsTable.headers[1], 16)
+    ],
+    rows: Array.from({ length: tableRowLimit }, (_, index) => {
+      const row = rows[index] && typeof rows[index] === "object" ? rows[index] : {};
+      return {
+        name: sanitizeTableText(row.name, String(index + 1), 24),
+        value: sanitizeTableText(row.value, "0", 32)
+      };
+    })
   };
 }
 
@@ -598,6 +650,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && (url.pathname === "/table" || url.pathname === "/table-display" || url.pathname === "/obs_table.html")) {
+    serveHtml(res, tablePath);
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/obs_timer_controller.html") {
     serveHtml(res, controllerPath);
     return;
@@ -712,6 +769,7 @@ server.listen(port, host, () => {
   console.log(`OBS timer server running`);
   console.log(`Display:    http://127.0.0.1:${port}/display`);
   console.log(`Roulette:   http://127.0.0.1:${port}/roulette`);
+  console.log(`Table:      http://127.0.0.1:${port}/table`);
   console.log(`Controller: http://127.0.0.1:${port}/control`);
   console.log(`Listening:  ${host}:${port}`);
 });

@@ -933,6 +933,49 @@
       -webkit-user-select: text;
     }
 
+    .table-panel {
+      margin-top: 12px;
+    }
+
+    .table-controls {
+      display: grid;
+      gap: 10px;
+    }
+
+    .table-header-controls {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    .table-rows {
+      display: grid;
+      gap: 5px;
+      max-height: 420px;
+      padding-right: 2px;
+      overflow-y: auto;
+    }
+
+    .table-row {
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr) minmax(0, 1fr);
+      gap: 6px;
+      align-items: center;
+    }
+
+    .table-row-index {
+      color: rgba(255, 255, 255, 0.74);
+      font-size: 12px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .table-row input,
+    .table-header-controls input {
+      min-height: 30px;
+      font-size: 12px;
+    }
+
     .nudge-grid {
       margin-top: 6px;
     }
@@ -969,6 +1012,15 @@
 
       .active-color-row button {
         grid-column: 1 / -1;
+      }
+
+      .table-header-controls,
+      .table-row {
+        grid-template-columns: 1fr;
+      }
+
+      .table-row-index {
+        text-align: left;
       }
     }
   </style>
@@ -1131,6 +1183,8 @@
           <input id="displayUrl" type="text" readonly>
           <label for="rouletteUrl">룰렛 방송 URL</label>
           <input id="rouletteUrl" type="text" readonly>
+          <label for="tableUrl">표 방송 URL</label>
+          <input id="tableUrl" type="text" readonly>
           <label for="controlUrl">조작 URL</label>
           <input id="controlUrl" type="text" readonly>
         </div>
@@ -1239,6 +1293,27 @@
     </div>
   </section>
 
+  <section class="panel table-panel" aria-label="표 조작 패널">
+    <div class="panel-header">
+      <h1 class="panel-title">OBS 표</h1>
+      <div class="status-pill">컨트롤러</div>
+    </div>
+
+    <div class="table-controls">
+      <div class="table-header-controls">
+        <div class="field">
+          <label for="tableLeftHeader">왼쪽 타이틀</label>
+          <input id="tableLeftHeader" type="text" value="이름" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="tableRightHeader">오른쪽 타이틀</label>
+          <input id="tableRightHeader" type="text" value="판매성공" autocomplete="off">
+        </div>
+      </div>
+      <div id="tableRows" class="table-rows" aria-label="표 내용 입력"></div>
+    </div>
+  </section>
+
   <script>
     const params = new URLSearchParams(location.search);
     const pathView = location.pathname.toLowerCase();
@@ -1262,6 +1337,7 @@
     const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
     const defaultRouletteSpinDuration = 3000;
     const rouletteHistoryLimit = 500;
+    const tableRowLimit = 50;
 
     const defaults = {
       duration: 0,
@@ -1280,7 +1356,8 @@
       bgOpacity: 100,
       outputWidth: 320,
       outputHeight: 140,
-      roulette: createDefaultRoulette()
+      roulette: createDefaultRoulette(),
+      table: createDefaultTable()
     };
 
     document.body.classList.add(isControlView ? "control-view" : "display-view");
@@ -1360,6 +1437,7 @@
       outputHeight: document.getElementById("outputHeight"),
       displayUrl: document.getElementById("displayUrl"),
       rouletteUrl: document.getElementById("rouletteUrl"),
+      tableUrl: document.getElementById("tableUrl"),
       controlUrl: document.getElementById("controlUrl"),
       timerStartUrl: document.getElementById("timerStartUrl"),
       timerPauseUrl: document.getElementById("timerPauseUrl"),
@@ -1372,7 +1450,10 @@
       timerPlusMinuteUrl: document.getElementById("timerPlusMinuteUrl"),
       timerPlus10Url: document.getElementById("timerPlus10Url"),
       timerPlus1Url: document.getElementById("timerPlus1Url"),
-      rouletteSpinUrl: document.getElementById("rouletteSpinUrl")
+      rouletteSpinUrl: document.getElementById("rouletteSpinUrl"),
+      tableLeftHeader: document.getElementById("tableLeftHeader"),
+      tableRightHeader: document.getElementById("tableRightHeader"),
+      tableRows: document.getElementById("tableRows")
     };
 
     function sanitizeRoom(value) {
@@ -1462,6 +1543,7 @@
       next.outputWidth = clampNumber(next.outputWidth, 120, 1920, defaults.outputWidth);
       next.outputHeight = clampNumber(next.outputHeight, 60, 1080, defaults.outputHeight);
       next.roulette = normalizeRoulette(next.roulette);
+      next.table = normalizeTable(next.table);
       return next;
     }
 
@@ -1615,6 +1697,58 @@
         spinDuration: normalizeRouletteSpinDuration(source.spinDuration),
         resultIndex: clampInt(source.resultIndex, -1, count - 1),
         history
+      };
+    }
+
+    function createDefaultTable() {
+      return {
+        headers: ["이름", "판매성공"],
+        rows: Array.from({ length: tableRowLimit }, (_, index) => ({
+          name: String(index + 1),
+          value: "0"
+        }))
+      };
+    }
+
+    function sliceTableText(value, limit, trim = true) {
+      const text = String(value || "")
+        .normalize("NFC")
+        .replace(/[\uFFFD\u0000-\u001F\u007F]/g, "");
+      const normalized = trim ? text.trim() : text;
+      if (typeof Intl !== "undefined" && Intl.Segmenter) {
+        const segmenter = new Intl.Segmenter("ko", { granularity: "grapheme" });
+        return Array.from(segmenter.segment(normalized), (part) => part.segment).slice(0, limit).join("");
+      }
+      return Array.from(normalized).slice(0, limit).join("");
+    }
+
+    function sanitizeTableText(value, fallback, limit) {
+      const text = sliceTableText(value, limit, true);
+      return text || fallback;
+    }
+
+    function sanitizeTableDraftText(value, limit) {
+      return sliceTableText(value, limit, false);
+    }
+
+    function normalizeTable(value) {
+      const defaultsTable = createDefaultTable();
+      const source = value && typeof value === "object" ? value : {};
+      const headers = Array.isArray(source.headers) ? source.headers : [];
+      const rows = Array.isArray(source.rows) ? source.rows : [];
+
+      return {
+        headers: [
+          sanitizeTableText(headers[0], defaultsTable.headers[0], 16),
+          sanitizeTableText(headers[1], defaultsTable.headers[1], 16)
+        ],
+        rows: Array.from({ length: tableRowLimit }, (_, index) => {
+          const row = rows[index] && typeof rows[index] === "object" ? rows[index] : {};
+          return {
+            name: sanitizeTableText(row.name, String(index + 1), 24),
+            value: sanitizeTableText(row.value, "0", 32)
+          };
+        })
       };
     }
 
@@ -2211,6 +2345,51 @@
       els.rouletteHistoryList.replaceChildren(fragment);
     }
 
+    function renderTableControls() {
+      if (!isControlView) return;
+      const active = document.activeElement;
+      if (
+        active === els.tableLeftHeader
+        || active === els.tableRightHeader
+        || els.tableRows.contains(active)
+      ) {
+        return;
+      }
+
+      els.tableLeftHeader.value = state.table.headers[0];
+      els.tableRightHeader.value = state.table.headers[1];
+
+      const fragment = document.createDocumentFragment();
+      state.table.rows.forEach((row, index) => {
+        const item = document.createElement("div");
+        item.className = "table-row";
+
+        const number = document.createElement("span");
+        number.className = "table-row-index";
+        number.textContent = String(index + 1);
+
+        const name = document.createElement("input");
+        name.type = "text";
+        name.value = row.name;
+        name.placeholder = String(index + 1);
+        name.autocomplete = "off";
+        name.dataset.tableNameIndex = String(index);
+        name.ariaLabel = `${index + 1}번 이름`;
+
+        const value = document.createElement("input");
+        value.type = "text";
+        value.value = row.value;
+        value.placeholder = "0";
+        value.autocomplete = "off";
+        value.dataset.tableValueIndex = String(index);
+        value.ariaLabel = `${index + 1}번 값`;
+
+        item.append(number, name, value);
+        fragment.appendChild(item);
+      });
+      els.tableRows.replaceChildren(fragment);
+    }
+
     function getRemainingRouletteSpinDuration() {
       if (!state.roulette.spinning || !state.roulette.spinStartedAt) return 0;
       const elapsed = Date.now() - state.roulette.spinStartedAt;
@@ -2250,6 +2429,7 @@
       if (isControlView) {
         const displayUrl = `${location.origin}/display?room=${encodeURIComponent(room)}`;
         const rouletteUrl = `${location.origin}/roulette?room=${encodeURIComponent(room)}`;
+        const tableUrl = `${location.origin}/table?room=${encodeURIComponent(room)}`;
         const controlUrl = `${location.origin}/control?room=${encodeURIComponent(room)}&key=${encodeURIComponent(controlKey)}`;
         const actionUrl = (path, extra = {}) => {
           const actionParams = new URLSearchParams({
@@ -2261,6 +2441,7 @@
         };
         els.displayUrl.value = displayUrl;
         els.rouletteUrl.value = rouletteUrl;
+        els.tableUrl.value = tableUrl;
         els.controlUrl.value = controlUrl;
         els.timerStartUrl.value = actionUrl("/timer/start");
         els.timerPauseUrl.value = actionUrl("/timer/pause");
@@ -2297,6 +2478,7 @@
         els.bgOpacityValue.textContent = `${state.bgOpacity}%`;
         els.outputWidth.value = state.outputWidth;
         els.outputHeight.value = state.outputHeight;
+        renderTableControls();
         updateFontButtons();
         if ((!state.running || fromRemote) && !draftTimeDirty) {
           writeInputSeconds(currentSeconds);
@@ -2521,6 +2703,46 @@
       syncAndRender();
     }
 
+    function saveTableDraft() {
+      state.table = normalizeTable(state.table);
+      saveState();
+    }
+
+    function commitTableControl(input) {
+      if (!input) return;
+
+      if (input === els.tableLeftHeader) {
+        state.table.headers[0] = sanitizeTableText(input.value, "이름", 16);
+        input.value = state.table.headers[0];
+        saveTableDraft();
+        return;
+      }
+
+      if (input === els.tableRightHeader) {
+        state.table.headers[1] = sanitizeTableText(input.value, "판매성공", 16);
+        input.value = state.table.headers[1];
+        saveTableDraft();
+        return;
+      }
+
+      if (input.matches("[data-table-name-index]")) {
+        const index = Number(input.dataset.tableNameIndex);
+        if (!state.table.rows[index]) return;
+        state.table.rows[index].name = sanitizeTableText(input.value, String(index + 1), 24);
+        input.value = state.table.rows[index].name;
+        saveTableDraft();
+        return;
+      }
+
+      if (input.matches("[data-table-value-index]")) {
+        const index = Number(input.dataset.tableValueIndex);
+        if (!state.table.rows[index]) return;
+        state.table.rows[index].value = sanitizeTableText(input.value, "0", 32);
+        input.value = state.table.rows[index].value;
+        saveTableDraft();
+      }
+    }
+
     function bindController() {
       if (!isControlView) return;
 
@@ -2607,6 +2829,83 @@
         if (event.target.matches("[data-roulette-probability-index]")) {
           updateRouletteProbability(event.target);
         }
+      });
+
+      const updateTableHeaderDraft = (index, value) => {
+        state.table.headers[index] = sanitizeTableDraftText(value, 16);
+        saveState();
+      };
+
+      els.tableLeftHeader.addEventListener("input", (event) => {
+        if (event.isComposing || event.target.dataset.composing === "1") return;
+        updateTableHeaderDraft(0, event.target.value);
+      });
+
+      els.tableRightHeader.addEventListener("input", (event) => {
+        if (event.isComposing || event.target.dataset.composing === "1") return;
+        updateTableHeaderDraft(1, event.target.value);
+      });
+
+      [els.tableLeftHeader, els.tableRightHeader].forEach((input) => {
+        input.addEventListener("compositionstart", () => {
+          input.dataset.composing = "1";
+        });
+        input.addEventListener("compositionend", () => {
+          input.dataset.composing = "";
+          const index = input === els.tableLeftHeader ? 0 : 1;
+          updateTableHeaderDraft(index, input.value);
+        });
+        input.addEventListener("change", () => commitTableControl(input));
+        input.addEventListener("blur", () => commitTableControl(input));
+      });
+
+      els.tableRows.addEventListener("input", (event) => {
+        if (!event.target.matches("[data-table-name-index], [data-table-value-index]")) return;
+        if (event.isComposing || event.target.dataset.composing === "1") return;
+
+        if (event.target.matches("[data-table-name-index]")) {
+          const index = Number(event.target.dataset.tableNameIndex);
+          if (!state.table.rows[index]) return;
+          state.table.rows[index].name = sanitizeTableDraftText(event.target.value, 24);
+          saveState();
+          return;
+        }
+
+        const index = Number(event.target.dataset.tableValueIndex);
+        if (!state.table.rows[index]) return;
+        state.table.rows[index].value = sanitizeTableDraftText(event.target.value, 32);
+        saveState();
+      });
+
+      els.tableRows.addEventListener("compositionstart", (event) => {
+        if (!event.target.matches("[data-table-name-index], [data-table-value-index]")) return;
+        event.target.dataset.composing = "1";
+      });
+
+      els.tableRows.addEventListener("compositionend", (event) => {
+        if (!event.target.matches("[data-table-name-index], [data-table-value-index]")) return;
+        event.target.dataset.composing = "";
+        if (event.target.matches("[data-table-name-index]")) {
+          const index = Number(event.target.dataset.tableNameIndex);
+          if (!state.table.rows[index]) return;
+          state.table.rows[index].name = sanitizeTableDraftText(event.target.value, 24);
+          saveState();
+          return;
+        }
+        const index = Number(event.target.dataset.tableValueIndex);
+        if (!state.table.rows[index]) return;
+        state.table.rows[index].value = sanitizeTableDraftText(event.target.value, 32);
+        saveState();
+      });
+
+      els.tableRows.addEventListener("change", (event) => {
+        if (!event.target.matches("[data-table-name-index], [data-table-value-index]")) return;
+        commitTableControl(event.target);
+      });
+
+      els.tableRows.addEventListener("focusout", (event) => {
+        if (!event.target.matches("[data-table-name-index], [data-table-value-index]")) return;
+        commitTableControl(event.target);
       });
 
       els.timeInputs.forEach((input) => {
