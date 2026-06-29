@@ -27,18 +27,19 @@
       display: flex;
       width: 100vw;
       height: 100vh;
-      align-items: stretch;
-      justify-content: center;
+      align-items: flex-start;
+      justify-content: flex-start;
       padding: 0;
     }
 
     .score-table {
-      width: 100%;
-      height: 100%;
+      width: auto;
+      min-width: max-content;
+      height: auto;
       border-collapse: collapse;
-      table-layout: fixed;
+      table-layout: auto;
       color: #101010;
-      font-size: clamp(6px, calc(78vh / var(--row-count)), 28px);
+      font-size: clamp(12px, calc(72vh / var(--row-count)), 22px);
       font-weight: 800;
       line-height: 1.05;
     }
@@ -46,10 +47,9 @@
     th,
     td {
       border: 1px solid rgba(0, 0, 0, 0.62);
-      padding: 0.16em 0.35em;
+      padding: 0.16em 1em;
       overflow: hidden;
       text-align: center;
-      text-overflow: ellipsis;
       white-space: nowrap;
       text-shadow: 0 1px 0 rgba(255, 255, 255, 0.24);
     }
@@ -61,12 +61,8 @@
       text-shadow: none;
     }
 
-    td:first-child {
-      width: 58%;
-    }
-
-    td:last-child {
-      width: 42%;
+    td {
+      min-width: 4ch;
     }
   </style>
 </head>
@@ -111,7 +107,9 @@
     function createDefaultTable() {
       return {
         headers: ["이름", "판매성공"],
+        sortMode: "sequence",
         rows: Array.from({ length: tableRowLimit }, (_, index) => ({
+          enabled: index < 10,
           name: String(index + 1),
           value: "0"
         }))
@@ -145,9 +143,11 @@
           sanitizeTableText(headers[0], fallbackTable.headers[0], 16),
           sanitizeTableText(headers[1], fallbackTable.headers[1], 16)
         ],
+        sortMode: source.sortMode === "rank" ? "rank" : "sequence",
         rows: Array.from({ length: tableRowLimit }, (_, index) => {
           const row = rows[index] && typeof rows[index] === "object" ? rows[index] : {};
           return {
+            enabled: row.enabled === undefined ? index < 10 : Boolean(row.enabled),
             name: sanitizeTableText(row.name, String(index + 1), 24),
             value: sanitizeTableText(row.value, "0", 32)
           };
@@ -155,15 +155,33 @@
       };
     }
 
+    function extractTableNumber(value) {
+      const match = String(value || "").replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+      if (!match) return Number.NEGATIVE_INFINITY;
+      const number = Number(match[0]);
+      return Number.isFinite(number) ? number : Number.NEGATIVE_INFINITY;
+    }
+
     function renderTable(table) {
-      document.documentElement.style.setProperty("--row-count", String(table.rows.length + 1));
+      const visibleRows = table.rows
+        .map((row, index) => ({ ...row, originalIndex: index }))
+        .filter((row) => row.enabled);
+
+      if (table.sortMode === "rank") {
+        visibleRows.sort((a, b) => {
+          const diff = extractTableNumber(b.value) - extractTableNumber(a.value);
+          return diff || a.originalIndex - b.originalIndex;
+        });
+      }
+
+      document.documentElement.style.setProperty("--row-count", String(Math.max(1, visibleRows.length + 1)));
       els.leftHeader.textContent = table.headers[0];
       els.rightHeader.textContent = table.headers[1];
 
       const fragment = document.createDocumentFragment();
-      table.rows.forEach((row, index) => {
+      visibleRows.forEach((row) => {
         const tr = document.createElement("tr");
-        tr.style.background = tableColors[index % tableColors.length];
+        tr.style.background = tableColors[row.originalIndex % tableColors.length];
 
         const name = document.createElement("td");
         name.textContent = row.name;

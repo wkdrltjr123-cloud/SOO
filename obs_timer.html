@@ -944,7 +944,7 @@
 
     .table-header-controls {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) 118px minmax(0, 1fr);
       gap: 8px;
     }
 
@@ -958,9 +958,17 @@
 
     .table-row {
       display: grid;
-      grid-template-columns: 38px minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: 22px 34px minmax(0, 1fr) minmax(0, 1fr);
       gap: 6px;
       align-items: center;
+    }
+
+    .table-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      min-height: 16px;
+      margin: 0 auto;
+      accent-color: #1ca9d8;
     }
 
     .table-row-index {
@@ -971,7 +979,8 @@
     }
 
     .table-row input,
-    .table-header-controls input {
+    .table-header-controls input,
+    .table-header-controls select {
       min-height: 30px;
       font-size: 12px;
     }
@@ -1306,6 +1315,13 @@
           <input id="tableLeftHeader" type="text" value="이름" autocomplete="off">
         </div>
         <div class="field">
+          <label for="tableSortMode">정렬 방식</label>
+          <select id="tableSortMode" aria-label="표 정렬 방식">
+            <option value="sequence">순차</option>
+            <option value="rank">순위</option>
+          </select>
+        </div>
+        <div class="field">
           <label for="tableRightHeader">오른쪽 타이틀</label>
           <input id="tableRightHeader" type="text" value="판매성공" autocomplete="off">
         </div>
@@ -1452,6 +1468,7 @@
       timerPlus1Url: document.getElementById("timerPlus1Url"),
       rouletteSpinUrl: document.getElementById("rouletteSpinUrl"),
       tableLeftHeader: document.getElementById("tableLeftHeader"),
+      tableSortMode: document.getElementById("tableSortMode"),
       tableRightHeader: document.getElementById("tableRightHeader"),
       tableRows: document.getElementById("tableRows")
     };
@@ -1703,7 +1720,9 @@
     function createDefaultTable() {
       return {
         headers: ["이름", "판매성공"],
+        sortMode: "sequence",
         rows: Array.from({ length: tableRowLimit }, (_, index) => ({
+          enabled: index < 10,
           name: String(index + 1),
           value: "0"
         }))
@@ -1742,9 +1761,11 @@
           sanitizeTableText(headers[0], defaultsTable.headers[0], 16),
           sanitizeTableText(headers[1], defaultsTable.headers[1], 16)
         ],
+        sortMode: source.sortMode === "rank" ? "rank" : "sequence",
         rows: Array.from({ length: tableRowLimit }, (_, index) => {
           const row = rows[index] && typeof rows[index] === "object" ? rows[index] : {};
           return {
+            enabled: row.enabled === undefined ? index < 10 : Boolean(row.enabled),
             name: sanitizeTableText(row.name, String(index + 1), 24),
             value: sanitizeTableText(row.value, "0", 32)
           };
@@ -2350,6 +2371,7 @@
       const active = document.activeElement;
       if (
         active === els.tableLeftHeader
+        || active === els.tableSortMode
         || active === els.tableRightHeader
         || els.tableRows.contains(active)
       ) {
@@ -2357,12 +2379,19 @@
       }
 
       els.tableLeftHeader.value = state.table.headers[0];
+      els.tableSortMode.value = state.table.sortMode;
       els.tableRightHeader.value = state.table.headers[1];
 
       const fragment = document.createDocumentFragment();
       state.table.rows.forEach((row, index) => {
         const item = document.createElement("div");
         item.className = "table-row";
+
+        const enabled = document.createElement("input");
+        enabled.type = "checkbox";
+        enabled.checked = row.enabled;
+        enabled.dataset.tableEnabledIndex = String(index);
+        enabled.ariaLabel = `${index + 1}번 OBS 노출`;
 
         const number = document.createElement("span");
         number.className = "table-row-index";
@@ -2384,7 +2413,7 @@
         value.dataset.tableValueIndex = String(index);
         value.ariaLabel = `${index + 1}번 값`;
 
-        item.append(number, name, value);
+        item.append(enabled, number, name, value);
         fragment.appendChild(item);
       });
       els.tableRows.replaceChildren(fragment);
@@ -2725,6 +2754,14 @@
         return;
       }
 
+      if (input.matches("[data-table-enabled-index]")) {
+        const index = Number(input.dataset.tableEnabledIndex);
+        if (!state.table.rows[index]) return;
+        state.table.rows[index].enabled = input.checked;
+        saveState();
+        return;
+      }
+
       if (input.matches("[data-table-name-index]")) {
         const index = Number(input.dataset.tableNameIndex);
         if (!state.table.rows[index]) return;
@@ -2859,6 +2896,11 @@
         input.addEventListener("blur", () => commitTableControl(input));
       });
 
+      els.tableSortMode.addEventListener("change", () => {
+        state.table.sortMode = els.tableSortMode.value === "rank" ? "rank" : "sequence";
+        syncAndRender();
+      });
+
       els.tableRows.addEventListener("input", (event) => {
         if (!event.target.matches("[data-table-name-index], [data-table-value-index]")) return;
         if (event.isComposing || event.target.dataset.composing === "1") return;
@@ -2899,7 +2941,7 @@
       });
 
       els.tableRows.addEventListener("change", (event) => {
-        if (!event.target.matches("[data-table-name-index], [data-table-value-index]")) return;
+        if (!event.target.matches("[data-table-enabled-index], [data-table-name-index], [data-table-value-index]")) return;
         commitTableControl(event.target);
       });
 

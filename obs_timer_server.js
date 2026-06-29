@@ -239,7 +239,9 @@ function normalizeRoulette(value) {
 function createDefaultTable() {
   return {
     headers: ["이름", "판매성공"],
+    sortMode: "sequence",
     rows: Array.from({ length: tableRowLimit }, (_, index) => ({
+      enabled: index < 10,
       name: String(index + 1),
       value: "0"
     }))
@@ -274,9 +276,11 @@ function normalizeTable(value) {
       sanitizeTableText(headers[0], defaultsTable.headers[0], 16),
       sanitizeTableText(headers[1], defaultsTable.headers[1], 16)
     ],
+    sortMode: source.sortMode === "rank" ? "rank" : "sequence",
     rows: Array.from({ length: tableRowLimit }, (_, index) => {
       const row = rows[index] && typeof rows[index] === "object" ? rows[index] : {};
       return {
+        enabled: row.enabled === undefined ? index < 10 : Boolean(row.enabled),
         name: sanitizeTableText(row.name, String(index + 1), 24),
         value: sanitizeTableText(row.value, "0", 32)
       };
