@@ -15,8 +15,8 @@ const fontExtensions = new Set([".woff2", ".woff", ".ttf", ".otf"]);
 const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
 const defaultRouletteSpinDuration = 3000;
 const rouletteSpinSettleDelay = 900;
-const rouletteHistoryLimit = 500;
 const tableRowLimit = 50;
+const ssePingInterval = 25000;
 
 const defaults = {
   duration: 0,
@@ -40,6 +40,8 @@ const defaults = {
 };
 
 let rooms = loadRooms();
+const eventClients = new Map();
+const rouletteSettleTimers = new Map();
 
 function clampNumber(value, min, max, fallback) {
   const number = Number(value);
@@ -101,8 +103,7 @@ function createDefaultRoulette() {
     rotation: 0,
     spinStartedAt: 0,
     spinDuration: defaultRouletteSpinDuration,
-    resultIndex: -1,
-    history: []
+    resultIndex: -1
   };
 }
 
@@ -184,6 +185,7 @@ function normalizeRouletteSpinDuration(value) {
 function normalizeRoulette(value) {
   const defaultsRoulette = createDefaultRoulette();
   const source = value && typeof value === "object" ? value : {};
+  const { history: _history, ...sourceWithoutHistory } = source;
   const count = clampInt(source.count, 1, 15);
   const rawOptions = Array.isArray(source.options) ? source.options : [];
   const options = [];
@@ -214,15 +216,10 @@ function normalizeRoulette(value) {
   applyRouletteProbabilityWeights(options);
 
   const step = ["count", "options", "spin"].includes(source.step) ? source.step : defaultsRoulette.step;
-  const history = Array.isArray(source.history) ? source.history.slice(0, rouletteHistoryLimit).map((item) => ({
-    label: sanitizeRouletteLabel(item?.label, "결과"),
-    probability: Number.isFinite(Number(item?.probability)) ? clampNumber(item.probability, 0, 100, 0) : null,
-    at: Number(item?.at) || Date.now()
-  })) : [];
 
   return {
     ...defaultsRoulette,
-    ...source,
+    ...sourceWithoutHistory,
     step,
     count,
     options,
@@ -231,8 +228,7 @@ function normalizeRoulette(value) {
     rotation: Number(source.rotation) || 0,
     spinStartedAt: Number(source.spinStartedAt) || 0,
     spinDuration: normalizeRouletteSpinDuration(source.spinDuration),
-    resultIndex: clampInt(source.resultIndex, -1, count - 1),
-    history
+    resultIndex: clampInt(source.resultIndex, -1, count - 1)
   };
 }
 
@@ -384,8 +380,126 @@ function getRoomState(room) {
   settleCountdown(record);
   if (settleRouletteSpin(record)) {
     saveRooms();
+    sendRoomUpdates(room, record, ["roulette", "control"]);
   }
   return record.state;
+}
+
+function sanitizeEventView(value) {
+  const view = String(value || "").toLowerCase();
+  return ["timer", "roulette", "table", "control"].includes(view) ? view : "control";
+}
+
+function getTimerSnapshot(state) {
+  return {
+    duration: state.duration,
+    remaining: state.remaining,
+    elapsed: state.elapsed,
+    running: state.running,
+    lastStartedAt: state.lastStartedAt,
+    mode: state.mode,
+    textColor: state.textColor,
+    outlineColor: state.outlineColor,
+    outlineWidth: state.outlineWidth,
+    fontSize: state.fontSize,
+    fontFile: state.fontFile,
+    showHours: state.showHours,
+    solidBg: state.solidBg,
+    bgOpacity: state.bgOpacity,
+    outputWidth: state.outputWidth,
+    outputHeight: state.outputHeight
+  };
+}
+
+function getRouletteSnapshot(state) {
+  return state.roulette;
+}
+
+function getTableSnapshot(state) {
+  return state.table;
+}
+
+function getSnapshotForView(state, view) {
+  if (view === "timer") return { timer: getTimerSnapshot(state) };
+  if (view === "roulette") return { roulette: getRouletteSnapshot(state) };
+  if (view === "table") return { table: getTableSnapshot(state) };
+  return { state };
+}
+
+function addEventClient(room, view, res) {
+  if (!eventClients.has(room)) {
+    eventClients.set(room, new Set());
+  }
+
+  const client = { view, res };
+  eventClients.get(room).add(client);
+  return client;
+}
+
+function removeEventClient(room, client) {
+  const clients = eventClients.get(room);
+  if (!clients) return;
+  clients.delete(client);
+  if (!clients.size) {
+    eventClients.delete(room);
+  }
+}
+
+function writeSseEvent(res, event, data) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+function sendRoomEvent(room, view, event, data) {
+  const clients = eventClients.get(room);
+  if (!clients) return;
+
+  for (const client of clients) {
+    if (client.view !== view) continue;
+    writeSseEvent(client.res, event, data);
+  }
+}
+
+function sendInitialEvent(room, client) {
+  const state = getRoomState(room);
+  const payload = getSnapshotForView(state, client.view);
+  const event = client.view === "control" ? "state" : client.view;
+  writeSseEvent(client.res, event, payload);
+}
+
+function sendRoomUpdates(room, record, scopes = ["timer", "roulette", "table", "control"]) {
+  const state = record.state;
+  if (scopes.includes("timer")) {
+    sendRoomEvent(room, "timer", "timer", { timer: getTimerSnapshot(state) });
+  }
+  if (scopes.includes("roulette")) {
+    sendRoomEvent(room, "roulette", "roulette", { roulette: getRouletteSnapshot(state) });
+  }
+  if (scopes.includes("table")) {
+    sendRoomEvent(room, "table", "table", { table: getTableSnapshot(state) });
+  }
+  if (scopes.includes("control")) {
+    sendRoomEvent(room, "control", "state", { state });
+  }
+}
+
+function scheduleRouletteSettle(room, record) {
+  const roulette = record.state.roulette;
+  if (!roulette.spinning || !roulette.spinStartedAt) return;
+
+  if (rouletteSettleTimers.has(room)) {
+    clearTimeout(rouletteSettleTimers.get(room));
+  }
+
+  const remaining = Math.max(0, roulette.spinDuration + rouletteSpinSettleDelay - (Date.now() - roulette.spinStartedAt));
+  const timer = setTimeout(() => {
+    rouletteSettleTimers.delete(room);
+    if (settleRouletteSpin(record)) {
+      saveRooms();
+      sendRoomUpdates(room, record, ["roulette", "control"]);
+    }
+  }, remaining + 20);
+  rouletteSettleTimers.set(room, timer);
 }
 
 function settleCountdown(record) {
@@ -525,18 +639,6 @@ function getRouletteTargetRotation(roulette, resultIndex) {
   return current + (360 * 7) + alignDelta;
 }
 
-function addRouletteHistory(roulette, resultIndex) {
-  const option = roulette.options[resultIndex];
-  if (!option) return;
-
-  const total = getRouletteTotalWeight(roulette);
-  const probability = total > 0 ? (getOptionWeight(option) / total) * 100 : 0;
-  roulette.history = [
-    { label: option.label, probability, at: Date.now() },
-    ...roulette.history
-  ].slice(0, rouletteHistoryLimit);
-}
-
 function settleRouletteSpin(record) {
   const roulette = record.state.roulette;
   if (!roulette.spinning || !roulette.spinStartedAt) return false;
@@ -545,9 +647,6 @@ function settleRouletteSpin(record) {
   if (elapsed < roulette.spinDuration + rouletteSpinSettleDelay) return false;
 
   roulette.spinning = false;
-  if (roulette.resultIndex >= 0) {
-    addRouletteHistory(roulette, roulette.resultIndex);
-  }
   return true;
 }
 
@@ -674,6 +773,28 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/events") {
+    const room = getRoomName(url);
+    const view = sanitizeEventView(url.searchParams.get("view"));
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      "Connection": "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+      "X-Accel-Buffering": "no"
+    });
+    res.write(": connected\n\n");
+
+    const client = addEventClient(room, view, res);
+    sendInitialEvent(room, client);
+
+    req.on("close", () => {
+      removeEventClient(room, client);
+    });
+    return;
+  }
+
   if ((req.method === "GET" || req.method === "POST") && url.pathname.startsWith("/timer/")) {
     const room = getRoomName(url);
     const key = sanitizeKey(url.searchParams.get("key"));
@@ -696,6 +817,7 @@ const server = http.createServer(async (req, res) => {
 
     const result = applyTimerAction(record, action, url);
     saveRooms();
+    sendRoomUpdates(room, record, ["timer", "control"]);
     send(res, result.ok ? 200 : 400, JSON.stringify({ ...result, state: record.state }), "application/json; charset=utf-8");
     return;
   }
@@ -721,6 +843,8 @@ const server = http.createServer(async (req, res) => {
 
     const result = startRouletteSpin(record);
     saveRooms();
+    scheduleRouletteSettle(room, record);
+    sendRoomUpdates(room, record, ["roulette", "control"]);
     send(res, 200, JSON.stringify({ ...result, state: record.state }), "application/json; charset=utf-8");
     return;
   }
@@ -754,6 +878,8 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       record.state = normalizeState(JSON.parse(body || "{}"));
       saveRooms();
+      scheduleRouletteSettle(room, record);
+      sendRoomUpdates(room, record);
       send(res, 200, JSON.stringify(record.state), "application/json; charset=utf-8");
     } catch (error) {
       send(res, 400, JSON.stringify({ error: error.message }), "application/json; charset=utf-8");
@@ -768,6 +894,23 @@ const server = http.createServer(async (req, res) => {
 
   send(res, 404, "Not found");
 });
+
+const ssePingTimer = setInterval(() => {
+  const payload = { at: Date.now() };
+  for (const [room, clients] of eventClients.entries()) {
+    for (const client of [...clients]) {
+      try {
+        writeSseEvent(client.res, "ping", payload);
+      } catch {
+        removeEventClient(room, client);
+      }
+    }
+  }
+}, ssePingInterval);
+
+if (typeof ssePingTimer.unref === "function") {
+  ssePingTimer.unref();
+}
 
 server.listen(port, host, () => {
   console.log(`OBS timer server running`);

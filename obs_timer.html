@@ -1339,6 +1339,7 @@
     const controlKey = getControlKey();
     const stateEndpoint = `/state?room=${encodeURIComponent(room)}`;
     const writeStateEndpoint = `${stateEndpoint}&key=${encodeURIComponent(controlKey)}`;
+    const eventsEndpoint = `/events?room=${encodeURIComponent(room)}&view=${isControlView ? "control" : "timer"}`;
     const fontsEndpoint = "/fonts";
     const storageKey = "obsTimerState.v2";
     const legacyStorageKey = "obsTimerState";
@@ -1353,7 +1354,10 @@
     const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
     const defaultRouletteSpinDuration = 3000;
     const rouletteHistoryLimit = 500;
+    const localChangeEchoGuardMs = 2500;
     const tableRowLimit = 50;
+    const controlFallbackPollInterval = 15000;
+    const timerFallbackPollInterval = 30000;
 
     const defaults = {
       duration: 0,
@@ -1397,6 +1401,10 @@
     let lastLocalChangeAt = 0;
     let timerPanelCollapsed = false;
     let rafId = 0;
+    let eventSource = null;
+    let sseConnected = false;
+    let rouletteHistory = [];
+    let lastRouletteHistorySpinStartedAt = 0;
 
     const els = {
       stage: document.querySelector(".stage"),
@@ -1585,8 +1593,7 @@
         rotation: 0,
         spinStartedAt: 0,
         spinDuration: defaultRouletteSpinDuration,
-        resultIndex: -1,
-        history: []
+        resultIndex: -1
       };
     }
 
@@ -1665,6 +1672,7 @@
     function normalizeRoulette(value) {
       const defaultsRoulette = createDefaultRoulette();
       const source = value && typeof value === "object" ? value : {};
+      const { history: _history, ...sourceWithoutHistory } = source;
       const count = clampInt(source.count, 1, 15);
       const rawOptions = Array.isArray(source.options) ? source.options : [];
       const options = [];
@@ -1695,15 +1703,10 @@
       applyRouletteProbabilityWeights(options);
 
       const step = ["count", "options", "spin"].includes(source.step) ? source.step : defaultsRoulette.step;
-      const history = Array.isArray(source.history) ? source.history.slice(0, rouletteHistoryLimit).map((item) => ({
-        label: sanitizeRouletteLabel(item?.label, "결과"),
-        probability: Number.isFinite(Number(item?.probability)) ? clampNumber(item.probability, 0, 100, 0) : null,
-        at: Number(item?.at) || Date.now()
-      })) : [];
 
       return {
         ...defaultsRoulette,
-        ...source,
+        ...sourceWithoutHistory,
         step,
         count,
         options,
@@ -1712,8 +1715,7 @@
         rotation: Number(source.rotation) || 0,
         spinStartedAt: Number(source.spinStartedAt) || 0,
         spinDuration: normalizeRouletteSpinDuration(source.spinDuration),
-        resultIndex: clampInt(source.resultIndex, -1, count - 1),
-        history
+        resultIndex: clampInt(source.resultIndex, -1, count - 1)
       };
     }
 
@@ -1938,7 +1940,7 @@
         serverSaveTimer = 0;
         serverPostInFlight = true;
         lastServerPostAt = Date.now();
-        const payload = JSON.stringify(state);
+        const payload = JSON.stringify(getServerStateSnapshot());
         lastServerPayload = payload;
         await fetch(writeStateEndpoint, {
           method: "POST",
@@ -1956,13 +1958,83 @@
       }
     }
 
+    function getServerStateSnapshot() {
+      const snapshot = normalizeState(state);
+      if (!snapshot.running || !snapshot.lastStartedAt) {
+        return snapshot;
+      }
+
+      const now = Date.now();
+      const delta = Math.max(0, (now - snapshot.lastStartedAt) / 1000);
+      if (snapshot.mode === "down") {
+        snapshot.remaining = Math.max(0, snapshot.remaining - delta);
+        if (snapshot.remaining <= 0) {
+          snapshot.running = false;
+        }
+      } else {
+        snapshot.elapsed = Math.max(0, snapshot.elapsed + delta);
+      }
+      snapshot.lastStartedAt = now;
+      return snapshot;
+    }
+
     function receiveState(nextState) {
-      if (isControlView && Date.now() - lastLocalChangeAt < 500) {
+      if (isControlView && Date.now() - lastLocalChangeAt < localChangeEchoGuardMs) {
         return;
       }
-      Object.assign(state, normalizeState(nextState));
+      const previousRoulette = state.roulette;
+      const incoming = normalizeState(nextState);
+      if (
+        isControlView
+        && previousRoulette?.spinning
+        && !incoming.roulette.spinning
+        && incoming.roulette.resultIndex >= 0
+      ) {
+        addRouletteHistoryFromRoulette(incoming.roulette);
+      }
+      Object.assign(state, incoming);
       document.body.classList.remove("state-loading");
       render(true);
+    }
+
+    function receiveTimerState(timerState) {
+      Object.assign(state, normalizeState({ ...state, ...timerState }));
+      document.body.classList.remove("state-loading");
+      render(true);
+    }
+
+    function connectServerEvents() {
+      if (!isServerMode || !("EventSource" in window)) return;
+
+      eventSource = new EventSource(eventsEndpoint);
+      eventSource.addEventListener("open", () => {
+        sseConnected = true;
+      });
+      eventSource.addEventListener("state", (event) => {
+        sseConnected = true;
+        try {
+          const data = JSON.parse(event.data);
+          if (data.state) receiveState(data.state);
+        } catch {
+          // Ignore malformed SSE payloads.
+        }
+      });
+      eventSource.addEventListener("timer", (event) => {
+        sseConnected = true;
+        if (isControlView) return;
+        try {
+          const data = JSON.parse(event.data);
+          if (data.timer) receiveTimerState(data.timer);
+        } catch {
+          // Ignore malformed SSE payloads.
+        }
+      });
+      eventSource.addEventListener("ping", () => {
+        sseConnected = true;
+      });
+      eventSource.addEventListener("error", () => {
+        sseConnected = false;
+      });
     }
 
     function clampNumber(value, min, max, fallback) {
@@ -2347,12 +2419,12 @@
     function renderRouletteHistory() {
       if (!isControlView) return;
       const fragment = document.createDocumentFragment();
-      if (!state.roulette.history.length) {
+      if (!rouletteHistory.length) {
         const empty = document.createElement("li");
         empty.textContent = "아직 기록이 없습니다.";
         fragment.appendChild(empty);
       } else {
-        state.roulette.history.forEach((item) => {
+        rouletteHistory.forEach((item) => {
           const row = document.createElement("li");
           const label = document.createElement("span");
           const time = document.createElement("span");
@@ -2690,21 +2762,25 @@
       return current + (360 * 7) + alignDelta;
     }
 
-    function addRouletteHistory(resultIndex) {
-      const option = state.roulette.options[resultIndex];
+    function addRouletteHistoryFromRoulette(roulette) {
+      if (!isControlView || !roulette || roulette.resultIndex < 0) return;
+      if (roulette.spinStartedAt && roulette.spinStartedAt === lastRouletteHistorySpinStartedAt) return;
+
+      const option = roulette.options[roulette.resultIndex];
       if (!option) return;
-      const total = getRouletteTotalWeight();
+      const total = roulette.options.reduce((sum, item) => sum + getOptionWeight(item), 0);
       const probability = total > 0 ? (getOptionWeight(option) / total) * 100 : 0;
-      state.roulette.history = [
+      rouletteHistory = [
         { label: option.label, probability, at: Date.now() },
-        ...state.roulette.history
+        ...rouletteHistory
       ].slice(0, rouletteHistoryLimit);
+      lastRouletteHistorySpinStartedAt = roulette.spinStartedAt || Date.now();
     }
 
     function finishRouletteSpin() {
       if (!state.roulette.spinning) return;
       state.roulette.spinning = false;
-      addRouletteHistory(state.roulette.resultIndex);
+      addRouletteHistoryFromRoulette(state.roulette);
       syncAndRender();
     }
 
@@ -2729,6 +2805,8 @@
 
     function resetRouletteSetup() {
       state.roulette = createDefaultRoulette();
+      rouletteHistory = [];
+      lastRouletteHistorySpinStartedAt = 0;
       syncAndRender();
     }
 
@@ -3169,7 +3247,10 @@
     function bindSync() {
       if (isServerMode) {
         fetchServerState();
-        window.setInterval(fetchServerState, 700);
+        connectServerEvents();
+        window.setInterval(() => {
+          if (!sseConnected) fetchServerState();
+        }, isControlView ? controlFallbackPollInterval : timerFallbackPollInterval);
         window.addEventListener("resize", fitTimer);
         return;
       }
@@ -3228,6 +3309,7 @@
     rafId = requestAnimationFrame(tick);
     window.addEventListener("beforeunload", () => {
       cancelAnimationFrame(rafId);
+      if (eventSource) eventSource.close();
       if (channel) channel.close();
     });
   </script>

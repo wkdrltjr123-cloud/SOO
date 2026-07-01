@@ -83,7 +83,9 @@
     const params = new URLSearchParams(location.search);
     const room = sanitizeRoom(params.get("room") || params.get("r")) || "default";
     const stateEndpoint = `/state?room=${encodeURIComponent(room)}`;
+    const eventsEndpoint = `/events?room=${encodeURIComponent(room)}&view=table`;
     const tableRowLimit = 50;
+    const fallbackStatePollInterval = 20000;
     const tableColors = [
       "#ffec36", "#ffd43b", "#a8f0a3", "#ff5f64", "#aeefff",
       "#d8c5ff", "#ffc4d0", "#78dd86", "#ffbd72", "#ffb15e"
@@ -96,6 +98,8 @@
     };
 
     let lastPayload = "";
+    let eventSource = null;
+    let sseConnected = false;
 
     function sanitizeRoom(value) {
       return String(value || "")
@@ -195,24 +199,58 @@
       els.tableBody.replaceChildren(fragment);
     }
 
+    function applyTableState(table) {
+      const normalized = normalizeTable(table);
+      const payload = JSON.stringify(normalized);
+      if (payload === lastPayload) return;
+      lastPayload = payload;
+      renderTable(normalized);
+    }
+
     async function fetchState() {
       try {
         const response = await fetch(stateEndpoint, { cache: "no-store" });
         if (!response.ok) return;
         const state = await response.json();
-        const table = normalizeTable(state.table);
-        const payload = JSON.stringify(table);
-        if (payload === lastPayload) return;
-        lastPayload = payload;
-        renderTable(table);
+        applyTableState(state.table);
       } catch {
         renderTable(fallbackTable);
       }
     }
 
+    function connectEvents() {
+      if (!("EventSource" in window)) return;
+
+      eventSource = new EventSource(eventsEndpoint);
+      eventSource.addEventListener("open", () => {
+        sseConnected = true;
+      });
+      eventSource.addEventListener("table", (event) => {
+        sseConnected = true;
+        try {
+          const data = JSON.parse(event.data);
+          applyTableState(data.table);
+        } catch {
+          // Ignore malformed SSE payloads.
+        }
+      });
+      eventSource.addEventListener("ping", () => {
+        sseConnected = true;
+      });
+      eventSource.addEventListener("error", () => {
+        sseConnected = false;
+      });
+    }
+
     renderTable(fallbackTable);
     fetchState();
-    window.setInterval(fetchState, 400);
+    connectEvents();
+    window.setInterval(() => {
+      if (!sseConnected) fetchState();
+    }, fallbackStatePollInterval);
+    window.addEventListener("beforeunload", () => {
+      if (eventSource) eventSource.close();
+    });
   </script>
 </body>
 </html>

@@ -113,6 +113,7 @@
     const params = new URLSearchParams(location.search);
     const room = sanitizeRoom(params.get("room") || params.get("r")) || "default";
     const stateEndpoint = `/state?room=${encodeURIComponent(room)}`;
+    const eventsEndpoint = `/events?room=${encodeURIComponent(room)}&view=roulette`;
     const rouletteColors = [
       "#86ef6f", "#ece86a", "#56c7ff", "#ff8a3d", "#c084fc",
       "#f472b6", "#34d399", "#facc15", "#60a5fa", "#fb7185",
@@ -120,7 +121,7 @@
     ];
     const rouletteSpinDurations = [2000, 3000, 4000, 5000, 6000, 8000];
     const defaultRouletteSpinDuration = 3000;
-    const statePollInterval = 100;
+    const fallbackStatePollInterval = 15000;
     const minimumVisibleSpinDuration = 2200;
     const visualSpinSettleDelay = 900;
 
@@ -136,6 +137,8 @@
     let localSpinTimer = 0;
     let localSpinFrame = 0;
     let displayRotation = 0;
+    let eventSource = null;
+    let sseConnected = false;
 
     function sanitizeRoom(value) {
       return String(value || "")
@@ -516,18 +519,48 @@
       setRouletteClasses(roulette, false);
     }
 
+    function applyRouletteState(roulette) {
+      const normalized = normalizeRoulette(roulette);
+      const payload = JSON.stringify(normalized);
+      if (payload === lastPayload) return;
+      lastPayload = payload;
+      applyRoulette(normalized);
+    }
+
     async function fetchState() {
       try {
         const response = await fetch(stateEndpoint, { cache: "no-store" });
         if (!response.ok) return;
         const payload = await response.text();
-        if (payload === lastPayload) return;
-        lastPayload = payload;
         const state = JSON.parse(payload);
-        applyRoulette(normalizeRoulette(state.roulette));
+        applyRouletteState(state.roulette);
       } catch {
         // The server may still be waking up.
       }
+    }
+
+    function connectEvents() {
+      if (!("EventSource" in window)) return;
+
+      eventSource = new EventSource(eventsEndpoint);
+      eventSource.addEventListener("open", () => {
+        sseConnected = true;
+      });
+      eventSource.addEventListener("roulette", (event) => {
+        sseConnected = true;
+        try {
+          const data = JSON.parse(event.data);
+          applyRouletteState(data.roulette);
+        } catch {
+          // Ignore malformed SSE payloads.
+        }
+      });
+      eventSource.addEventListener("ping", () => {
+        sseConnected = true;
+      });
+      eventSource.addEventListener("error", () => {
+        sseConnected = false;
+      });
     }
 
     if ("ResizeObserver" in window) {
@@ -541,7 +574,13 @@
     }
 
     fetchState();
-    window.setInterval(fetchState, statePollInterval);
+    connectEvents();
+    window.setInterval(() => {
+      if (!sseConnected) fetchState();
+    }, fallbackStatePollInterval);
+    window.addEventListener("beforeunload", () => {
+      if (eventSource) eventSource.close();
+    });
   </script>
 </body>
 </html>
