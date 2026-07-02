@@ -1365,6 +1365,7 @@
       elapsed: 0,
       running: false,
       lastStartedAt: 0,
+      updatedAt: 0,
       mode: "down",
       textColor: "#ffffff",
       outlineColor: "#000000",
@@ -1556,6 +1557,7 @@
       next.elapsed = clampNumber(next.elapsed, 0, 359999, defaults.elapsed);
       next.running = Boolean(next.running);
       next.lastStartedAt = Number(next.lastStartedAt) || 0;
+      next.updatedAt = Number(next.updatedAt) || 0;
       next.mode = next.mode === "up" ? "up" : "down";
       next.textColor = normalizeHex(next.textColor, defaults.textColor);
       next.outlineColor = normalizeHex(next.outlineColor, defaults.outlineColor);
@@ -1903,8 +1905,14 @@
       }
     }
 
+    function markLocalStateUpdated(at = Date.now()) {
+      state.updatedAt = Math.max((Number(state.updatedAt) || 0) + 1, Number(at) || 0);
+      return state.updatedAt;
+    }
+
     function scheduleServerSave(delay = 120) {
       lastLocalChangeAt = Date.now();
+      markLocalStateUpdated(lastLocalChangeAt);
       const elapsed = Date.now() - lastServerPostAt;
       if (!serverPostInFlight && elapsed >= delay) {
         postServerState();
@@ -1942,11 +1950,18 @@
         lastServerPostAt = Date.now();
         const payload = JSON.stringify(getServerStateSnapshot());
         lastServerPayload = payload;
-        await fetch(writeStateEndpoint, {
+        const response = await fetch(writeStateEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: payload
         });
+        if (response.ok) {
+          const responsePayload = await response.text();
+          if (responsePayload && responsePayload !== payload) {
+            lastServerPayload = responsePayload;
+            receiveState(JSON.parse(responsePayload));
+          }
+        }
       } catch {
         // Keep the controller responsive even if the local server is temporarily unavailable.
       } finally {
@@ -1959,31 +1974,33 @@
     }
 
     function getServerStateSnapshot() {
-      const snapshot = normalizeState(state);
-      if (!snapshot.running || !snapshot.lastStartedAt) {
-        return snapshot;
-      }
-
       const now = Date.now();
-      const delta = Math.max(0, (now - snapshot.lastStartedAt) / 1000);
-      if (snapshot.mode === "down") {
-        snapshot.remaining = Math.max(0, snapshot.remaining - delta);
-        if (snapshot.remaining <= 0) {
-          snapshot.running = false;
-        }
-      } else {
-        snapshot.elapsed = Math.max(0, snapshot.elapsed + delta);
+      if (state.running && state.lastStartedAt) {
+        freezeTime(now);
       }
-      snapshot.lastStartedAt = now;
-      return snapshot;
+      markLocalStateUpdated(now);
+      return normalizeState(state);
+    }
+
+    function isIncomingStateOlder(incoming) {
+      const incomingUpdatedAt = Number(incoming.updatedAt) || 0;
+      const currentUpdatedAt = Number(state.updatedAt) || 0;
+      return incomingUpdatedAt > 0 && currentUpdatedAt > 0 && incomingUpdatedAt < currentUpdatedAt;
     }
 
     function receiveState(nextState) {
-      if (isControlView && Date.now() - lastLocalChangeAt < localChangeEchoGuardMs) {
-        return;
-      }
       const previousRoulette = state.roulette;
       const incoming = normalizeState(nextState);
+      if (isIncomingStateOlder(incoming)) {
+        return;
+      }
+      if (
+        isControlView
+        && Date.now() - lastLocalChangeAt < localChangeEchoGuardMs
+        && (Number(incoming.updatedAt) || 0) <= (Number(state.updatedAt) || 0)
+      ) {
+        return;
+      }
       if (
         isControlView
         && previousRoulette?.spinning
@@ -1998,7 +2015,11 @@
     }
 
     function receiveTimerState(timerState) {
-      Object.assign(state, normalizeState({ ...state, ...timerState }));
+      const incoming = normalizeState({ ...state, ...timerState });
+      if (isIncomingStateOlder(incoming)) {
+        return;
+      }
+      Object.assign(state, incoming);
       document.body.classList.remove("state-loading");
       render(true);
     }
@@ -2621,12 +2642,13 @@
     }
 
     function setRunning(running) {
-      freezeTime();
+      const now = Date.now();
+      freezeTime(now);
       state.running = Boolean(running);
       if (state.mode === "down" && state.remaining <= 0) {
         state.running = false;
       }
-      state.lastStartedAt = Date.now();
+      state.lastStartedAt = now;
       syncAndRender();
     }
 

@@ -24,6 +24,7 @@ const defaults = {
   elapsed: 0,
   running: false,
   lastStartedAt: 0,
+  updatedAt: 0,
   mode: "down",
   textColor: "#ffffff",
   outlineColor: "#000000",
@@ -68,6 +69,7 @@ function normalizeState(value) {
   next.elapsed = clampNumber(next.elapsed, 0, 359999, defaults.elapsed);
   next.running = Boolean(next.running);
   next.lastStartedAt = Number(next.lastStartedAt) || 0;
+  next.updatedAt = Number(next.updatedAt) || 0;
   next.mode = next.mode === "up" ? "up" : "down";
   next.textColor = normalizeHex(next.textColor, defaults.textColor);
   next.outlineColor = normalizeHex(next.outlineColor, defaults.outlineColor);
@@ -375,6 +377,16 @@ function getRoomRecord(room) {
   return rooms[room];
 }
 
+function markStateUpdated(record, at = Date.now()) {
+  record.state.updatedAt = Math.max(Number(record.state.updatedAt) || 0, Number(at) || 0);
+}
+
+function isIncomingStateStale(record, incomingState) {
+  const currentUpdatedAt = Number(record.state.updatedAt) || 0;
+  const incomingUpdatedAt = Number(incomingState.updatedAt) || 0;
+  return currentUpdatedAt > 0 && incomingUpdatedAt > 0 && incomingUpdatedAt < currentUpdatedAt;
+}
+
 function getRoomState(room) {
   const record = getRoomRecord(room);
   settleCountdown(record);
@@ -407,7 +419,8 @@ function getTimerSnapshot(state) {
     solidBg: state.solidBg,
     bgOpacity: state.bgOpacity,
     outputWidth: state.outputWidth,
-    outputHeight: state.outputHeight
+    outputHeight: state.outputHeight,
+    updatedAt: state.updatedAt
   };
 }
 
@@ -511,6 +524,7 @@ function settleCountdown(record) {
     roomState.remaining = 0;
     roomState.running = false;
     roomState.lastStartedAt = Date.now();
+    markStateUpdated(record);
     saveRooms();
   }
 }
@@ -647,6 +661,7 @@ function settleRouletteSpin(record) {
   if (elapsed < roulette.spinDuration + rouletteSpinSettleDelay) return false;
 
   roulette.spinning = false;
+  markStateUpdated(record);
   return true;
 }
 
@@ -816,6 +831,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     const result = applyTimerAction(record, action, url);
+    markStateUpdated(record);
     saveRooms();
     sendRoomUpdates(room, record, ["timer", "control"]);
     send(res, result.ok ? 200 : 400, JSON.stringify({ ...result, state: record.state }), "application/json; charset=utf-8");
@@ -842,6 +858,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     const result = startRouletteSpin(record);
+    if (result.ok) {
+      markStateUpdated(record);
+    }
     saveRooms();
     scheduleRouletteSettle(room, record);
     sendRoomUpdates(room, record, ["roulette", "control"]);
@@ -876,7 +895,14 @@ const server = http.createServer(async (req, res) => {
       }
 
       const body = await readBody(req);
-      record.state = normalizeState(JSON.parse(body || "{}"));
+      const incomingState = normalizeState(JSON.parse(body || "{}"));
+      if (isIncomingStateStale(record, incomingState)) {
+        send(res, 200, JSON.stringify(record.state), "application/json; charset=utf-8");
+        return;
+      }
+
+      record.state = incomingState;
+      markStateUpdated(record, record.state.updatedAt || Date.now());
       saveRooms();
       scheduleRouletteSettle(room, record);
       sendRoomUpdates(room, record);
